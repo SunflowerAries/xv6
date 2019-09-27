@@ -1,6 +1,7 @@
 #include <inc/stdio.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <kern/console.h>
 
 void
 i386_init()
@@ -13,7 +14,8 @@ i386_init()
     memset(edata, 0, end - edata);
 
 	// TODO: Use *cprintf* to print "Hello, world."
-
+    cons_init();
+    cprintf("Hello, world.");
 	// Spin.
     while (1);
 }

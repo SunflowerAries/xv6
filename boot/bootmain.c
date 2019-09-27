@@ -20,7 +20,7 @@ bootmain(void)
 	struct Proghdr *ph, *eph;
 
 	// Read 1st page off disk
-	readseg((uint32_t) ELFHDR, SECTSIZE*8, 0);
+	readseg((uint32_t) ELFHDR, SECTSIZE*8, 0);//TODO
 
 	// Is this a valid ELF?
 	if (ELFHDR->e_magic != ELF_MAGIC)
@@ -36,7 +36,7 @@ bootmain(void)
 
 	// Call the entry point from the ELF header
 	// note: does not return!
-	((void (*)(void)) (ELFHDR->e_entry))();
+	((void (*)(void)) (ELFHDR->e_entry))(); // Invert ELFHDR->e_entry to a function pointer without return or argument and then execute it
 
 bad:
 	while (1)
@@ -81,7 +81,7 @@ readseg(uint32_t pa, uint32_t count, uint32_t offset)
 	end_pa = pa + count;
 
 	// Round down to sector boundary
-	pa &= ~(SECTSIZE - 1);
+	pa &= ~(SECTSIZE - 1); 
 
 	// Translate from bytes to sectors, and kernel starts at sector 1
 	offset = (offset / SECTSIZE) + 1;
