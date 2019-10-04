@@ -86,7 +86,7 @@ PERL	:= perl
 CFLAGS := $(CFLAGS) $(DEFS) $(LABDEFS) -O1 -fno-builtin -I$(TOP) -MD
 CFLAGS += -fno-omit-frame-pointer
 CFLAGS += -std=gnu99
-CFLAGS += -static
+CFLAGS += -static -fno-pic -fno-pie
 CFLAGS += -Wall -Wno-format -Wno-unused -Werror -gstabs -m32
 # -fno-tree-ch prevented gcc from sometimes reordering read_ebp() before
 # mon_backtrace()'s function prologue on gcc version: (Debian 4.7.2-5) 4.7.2
@@ -148,7 +148,8 @@ QEMUOPTS += $(QEMUEXTRA)
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
 gdb:
-	gdb -n -x .gdbinit
+	gdb -x .gdbinit
+	# FIXME gdb -n -x .gdbinit
 
 pre-qemu: .gdbinit
 
