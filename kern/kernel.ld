@@ -55,14 +55,13 @@ SECTIONS
 		*(.data)
 	}
 
-        PROVIDE(edata = .);
+    PROVIDE(edata = .);
 	.bss : {
 		*(.bss)
 		BYTE(0)
-
-    	PROVIDE(end = .);
-
+	}
 	PROVIDE(end = .);
+
 
 	/DISCARD/ : {
 		*(.eh_frame .note.GNU-stack)
