@@ -37,7 +37,17 @@ static pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int32_t alloc)
 {
 	// TODO: Fill this function in
-	return NULL;
+	pde_t *pde = &pgdir[PDX(va)];
+	pte_t *pgtab;
+	if ((*pde & PTE_P) == 1)
+	    pgtab = (pte_t *)P2V((*pde >> 12) << 12);
+	else {
+	    if (alloc == 0 || (pgtab = (pte_t *)kalloc()) == NULL)
+	        return NULL;
+	    memset(pgtab, 0, PGSIZE);
+        *pde = V2P(pgtab) | PTE_P | PTE_U | PTE_W;
+	}
+	return &pgtab[PTX(va)];
 }
 
 // Create PTEs for virtual addresses starting at va that refer to
@@ -46,10 +56,21 @@ pgdir_walk(pde_t *pgdir, const void *va, int32_t alloc)
 // Use permission bits perm|PTE_P for the entries.
 //
 // Hint: the TA solution uses pgdir_walk
-static int
+static int // What to return?
 map_region(pde_t *pgdir, void *va, uint32_t size, uint32_t pa, int32_t perm)
 {
 	// TODO: Fill this function in
+	char *align = ROUNDUP(va, PGSIZE);
+	uint32_t alignsize = ROUNDUP(size, PGSIZE);
+	while (alignsize) {
+		pte_t *pte = pgdir_walk(pgdir, align, 1);
+		if (pte == NULL)
+			return -1;
+		*pte = pa | perm | PTE_P;
+		alignsize -= PGSIZE;
+		pa += PGSIZE;
+		align += PGSIZE;
+	} 
 	return 0;
 }
 
@@ -73,7 +94,10 @@ static struct kmap {
 	int perm;
 } kmap[] = {
 	// TODO: Modify the code to reflect the above.
-	{ (void *)KERNBASE, 0, PHYSTOP, PTE_W},
+	{ (void *)KERNBASE, 0, EXTMEM, PTE_W}, // I/O space
+	{ (void *)KERNBASE + EXTMEM, EXTMEM, V2P(data), 0}, // ro data
+	{ (void *)data, V2P(data), PHYSTOP, PTE_W}, // rw data + free physical memory
+	{ (void *)DEVSPACE, DEVSPACE, 0, PTE_W}, // devices
 };
 
 // Set up kernel part of a page table.
@@ -90,7 +114,18 @@ pde_t *
 kvm_init(void)
 {
 	// TODO: your code here
-	return 0;
+	pde_t *pgdirinit = (pde_t *)kalloc();
+	if (pgdirinit) {
+	    memset(pgdirinit, 0, PGSIZE);
+		for (int i = 0; i < ARRAY_SIZE(kmap); i++)
+			if (map_region(pgdirinit, kmap[i].virt, kmap[i].phys_end - kmap[i].phys_start, kmap[i].phys_start, kmap[i].perm) < 0) {
+                //cprintf("The %dth is wrong.\n", i);
+				kfree((char *)pgdirinit);
+                return 0;
+			}
+		return pgdirinit;
+	} else
+		return 0;
 }
 
 // Switch h/w page table register to the kernel-only page table.
@@ -98,6 +133,26 @@ void
 kvm_switch(void)
 {
 	lcr3(V2P(kpgdir)); // switch to the kernel page table
+}
+
+void
+check_vm(pde_t *pgdir)
+{
+	for (int i = 0; i < ARRAY_SIZE(kmap); i++) {
+		char *align = ROUNDUP(kmap[i].virt, PGSIZE);
+		uint32_t alignsize = ROUNDUP(kmap[i].phys_end - kmap[i].phys_start, PGSIZE);
+		uint32_t pa = kmap[i].phys_start;
+		while(alignsize) {
+			pte_t *pte = pgdir_walk(pgdir, align, 1);
+			if (pte == NULL) 
+				panic("vm_fail: Do not find the page table entry");
+			pte_t tmp = (*pte >> 12) << 12;
+			assert(tmp == pa);
+			align += PGSIZE;
+			pa += PGSIZE;
+			alignsize -= PGSIZE;
+		}
+	}
 }
 
 // Allocate one page table for the machine for the kernel address
@@ -108,6 +163,7 @@ vm_init(void)
 	kpgdir = kvm_init();
 	if (kpgdir == 0)
 		panic("vm_init: failure");
+	check_vm(kpgdir);
 	kvm_switch();
 }
 
@@ -118,4 +174,11 @@ void
 vm_free(pde_t *pgdir)
 {
 	// TODO: your code here
+	for (int i = 0; i < 1024; i++) {
+	    if (pgdir[i] & PTE_P) {
+	        char *v = P2V((pgdir[i] >> 12) << 12);
+	        kfree(v);
+	    }
+	}
+	kfree((char *)pgdir);
 }

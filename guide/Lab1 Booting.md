@@ -25,7 +25,7 @@ Our labs are all aimed at the x86 architecture. Everything you want to know abou
 
 ### 1.2.1 x86 assembly
 
-Our project is mainly composed of C language and x86 assembly. For GNU, we use the x86 assembly of the AT&T syntax. We do recommend reading the [Brennan's Guide to Inline Assembly](http://www.delorie.com/djgpp/doc/brennan/brennan_att_inline_djgpp.html). It gives a good and quite brief description of the AT&T assembly syntax we'll using with the GNU assembler.
+Our project is mainly composed of C language and x86 assembly. For GNU, we use the x86 assembly of the AT&T syntax. We do recommend reading the [Brennan's Guide to Inline Assembly](http://www.delorie.com/djgpp/doc/brennan/brennan_att_inline_djgpp.html). It gives a good and quite brief description of the AT& assembly syntax we'll using with the GNU assembler.
 
 ## 1.3 The boot loader
 

@@ -20,13 +20,13 @@ i386_init()
 	cons_init();
 
 	cprintf("Hello, world.\n");
-
 	boot_alloc_init();
 	vm_init();
 	alloc_init();
 
 	cprintf("VM: Init success.\n");
-
+	check_free_list();
+	cprintf("Finish.\n");
 	// Spin.
     while (1);
 }

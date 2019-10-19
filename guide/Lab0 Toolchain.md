@@ -197,3 +197,4 @@ For the gdb command, you can refer to the [GDB online docs](https://sourceware.o
 4. [linker scripts](https://sourceware.org/binutils/docs/ld/Scripts.html)
 5. [qemu-doc for gdb](https://qemu.weilnetz.de/doc/qemu-doc.html#Debug_002fExpert-options)
 6. [GDB online docs](https://sourceware.org/gdb/current/onlinedocs/gdb/)
+

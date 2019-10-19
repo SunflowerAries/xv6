@@ -2,7 +2,7 @@
 
 `Two weeks`
 
-[toc]
+[TOC]
 
 ## 2.1 Introduction
 
@@ -45,7 +45,7 @@ The allocator's data structure is a *free list* of physical memory pages that ar
 
 The function *i386_init*(kern/init.c:10) calls *boot_alloc_init*(kern/kalloc.c:35) and *alloc_init*(kern/kalloc.c:41) to initialize the allocator. The reason for having two calls is that for much of *i386_init* one cannot use memory above 4 megabytes. The call to *boot_alloc_init* sets up for allocation in the first 4 megabytes, and the call to *alloc_init* arranges for more memory to be allocatable. Xv6 ought to determine how much physical memory is available, but this turns out to be difficult on the x86. Instead it assumes that the machine has 240 megabytes (PHYSTOP) of physical memory, ans uses all the memory between the end of the kernel and PHYSTOP as the initial pool of free memory. For details on how to implement *boot_alloc_init* and *alloc_init*, please see the *Exercise 1* below.
 
-Here we have provided two well-implemented functions, *free_range*(kern/kalloc.c:64) and *kfree*(kern/kalloc.c:48). *free_range* adds memory to the free list via per-page calls to *kfree*. A PTE(Page Table Entry) can only refer to a physical address that is aligned on a 4096-byte boundary (is a multiple of 4096), so *free_range* uses *ROUNDUP*(kern/kalloc.c:67) to ensure that it fress only aligned physical addresses. The allocator starts with no memory; these calls to *kfree* give it some to manage.
+Here we have provided two well-implemented functions, *free_range*(kern/kalloc.c:64) and *kfree*(kern/kalloc.c:48). *free_range* adds memory to the free list via per-page calls to *kfree*. A PTE(Page Table Entry) can only refer to a physical address that is aligned on a 4096-byte boundary (is a multiple of 4096), so *free_range* uses **ROUNDUP**(kern/kalloc.c:67) to ensure that it fress only aligned physical addresses. The allocator starts with no memory; these calls to *kfree* give it some to manage.
 
 The allocator sometimes treats addresses as integers in order to perform arithmetic on them, and sometimes uses addresses as pointers to read and write memory; this dual use of addresses is the main reason that the allocator code is full of C type casts. The other reason is that freeing and allocation inherently change the type of the memory.
 

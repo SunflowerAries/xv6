@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "mmu.h": "c",
+        "error.h": "c",
+        "kalloc.h": "c",
+        "console.h": "c",
+        "string.h": "c",
+        "types.h": "c"
+    }
+}
