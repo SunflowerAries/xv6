@@ -118,27 +118,40 @@ boot_alloc_init(void)
 		for (int j = 0; j <= MAX_ORDER[i]; j++)
 			cprintf("%x\n", start[i][j]);*/
 
-	/*for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy: %x\n", Buddy[0][i].free_list->next);
+	for (int i = 0; i <= MAX_ORDER[0]; i++)
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
 
-	char *p = Buddykalloc(6);
-	char *q = Buddykalloc(3);
+	cprintf("After allocate a block of order 3.\n");
+	char *p = Buddykalloc(3);
+	for (int i = 0; i <= MAX_ORDER[0]; i++)
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+
+	cprintf("After allocate a block of order 0.\n");
+	char *q = Buddykalloc(0);
+	for (int i = 0; i <= MAX_ORDER[0]; i++)
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+
+	cprintf("After allocate a block of order 8.\n");
 	char *s = Buddykalloc(8);
-	char *t = Buddykalloc(1);
-	char *u = Buddykalloc(2);
+	for (int i = 0; i <= MAX_ORDER[0]; i++)
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+
 	cprintf("p: %x, q: %x, s: %x\n", p, q, s);
 
-	for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy: %x\n", Buddy[0][i].free_list->next);
-
-	kfree(t);
+	cprintf("After reclaiming the block of order 0.\n");
 	kfree(q);
-	kfree(u);
-	kfree(s);
-	kfree(p);
-
 	for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy: %x\n", Buddy[0][i].free_list->next);*/
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+
+	cprintf("After reclaiming the block of order 8.\n");
+	kfree(s);
+	for (int i = 0; i <= MAX_ORDER[0]; i++)
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+
+	cprintf("After reclaiming the block of order 3.\n");
+	kfree(p);
+	for (int i = 0; i <= MAX_ORDER[0]; i++)
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
 	//base = ROUNDUP(end, PGSIZE);
 	//for (int i = 0; i < MAX_ORDER; i++)
 	//	start[i + 1] = start[i] + pow_2(MAX_ORDER - i);
@@ -201,14 +214,9 @@ Buddykfree(char *v)
 	if ((uint32_t)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
 		panic("kfree");
 	int idx, id;
-	if ((void *)v >= (void *)base[1]) {
-		idx = (uint32_t)((void *)v - (void *)base[1]) / PGSIZE;
-		id = 1;
-	} else {
-		idx = (uint32_t)((void *)v - (void *)base[0]) / PGSIZE;
-		id = 0;
-		//cprintf("minus: %x, num: %x,idx: %x\n", (void *)v - (void *)base[0], (uint32_t)((void *)v - (void *)base[0]) / PGSIZE, idx);
-	}
+	id = (void *)v >= (void *)base[1];
+	//cprintf("minus: %x, num: %x,idx: %x\n", (void *)v - (void *)base[0], (uint32_t)((void *)v - (void *)base[0]) / PGSIZE, idx);
+	idx = (uint32_t)((void *)v - (void *)base[id]) / PGSIZE;
 	int p = idx;
 	int count = 0;
 	//cprintf("v: %x, idx: %x, p: %x\n", v, idx, p);
@@ -230,8 +238,9 @@ Buddykfree(char *v)
 		while (iter->next != (struct run *)buddypos && iter->next != Buddy[id][count].free_list)
 			iter = iter->next;
 		// buddy is occupied
-		if (iter->next != (struct run *)buddypos)
-			break;
+		// have little change
+		//if (iter->next != (struct run *)buddypos)
+		//	break;
 		struct run *uni = iter->next;
 		iter->next = uni->next;
 		Buddy[id][count].num--;
@@ -298,13 +307,8 @@ split(char *r, int low, int high)
 {
 	int size = 1 << high;
 	int id, idx;
-	if ((void *)r >= (void *)base[1]) {
-		idx = (uint32_t)((void *)r - (void *)base[1]) / PGSIZE;
-		id = 1;
-	} else {
-		idx = (uint32_t)((void *)r - (void *)base[0]) / PGSIZE;
-		id = 0;
-	}
+	id = (void *)r >= (void *)base[1];
+	idx = (uint32_t)((void *)r - (void *)base[id]) / PGSIZE;
 	//cprintf("%x\n", r);
 	while (high > low) {
 		//cprintf("pos: %x, high: %d\n", start[id][high] + (idx >> high), high);
