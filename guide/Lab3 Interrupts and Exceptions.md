@@ -55,7 +55,7 @@ To make a system call on the x86, a program invokes the *int n* instruction, whe
 - Clear the IF bit in %eflags, but only on an interrupt.
 - Set %cs and %eip to the values in the descriptor.
 
-The *int* instruction is a comlex instruction, and one might wonder whether all these actions are necessary. For example, the check CPL <= DPL allows the kernel to forbid *int* calls to inappropriate IDT entries such as device interrupt routines. For a user program to execute *int*, the IDT entry's DPL must be 3. If the user program doesn't have the appropriate privilege, then *int* will result in *int* 13, which is a general protection fault. As another example, the *int* instruction cannot use the user stack to save values, because the process may not have a valid stack pointer; instead, the hardware uses the stack specified in the task segment, which is set by the kernel.
+The *int* instruction is a complex instruction, and one might wonder whether all these actions are necessary. For example, the check CPL <= DPL allows the kernel to forbid *int* calls to inappropriate IDT entries such as device interrupt routines. For a user program to execute *int*, the IDT entry's DPL must be 3. If the user program doesn't have the appropriate privilege, then *int* will result in *int* 13, which is a general protection fault. As another example, the *int* instruction cannot use the user stack to save values, because the process may not have a valid stack pointer; instead, the hardware uses the stack specified in the task segment, which is set by the kernel.
 
 If the *int* instruction didn't require a privilege-level change, the x86 won't save %ss and %esp. After both cases, %eip is pointing to the address specified in the descriptor table, and the instruction at that address is the next instruction to be executed and the first instruction of the handler for *int n*. It is job of the operating system to implement these handlers.
 
@@ -82,3 +82,4 @@ For more on interrupts, please see the intel 80386 Programmer's Manual.
 Answer the following questions:
 
 1. Explain the process flow of xv6 after the interruption.
+
