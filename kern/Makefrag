@@ -20,9 +20,14 @@ KERN_SRCFILES :=	kern/entry.S \
 			kern/printf.c \
 			kern/trap.c \
 			kern/trapasm.S \
-			kern/vector.S \
+			kern/vectors.S \
 			kern/vm.c \
 			kern/kalloc.c \
+			kern/mpentry.S \
+			kern/mpconfig.c \
+			kern/lapic.c \
+			kern/spinlock.c \
+			kern/picirq.c \
 			lib/printfmt.c \
 			lib/readline.c \
 			lib/string.c
