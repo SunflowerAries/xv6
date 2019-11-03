@@ -118,7 +118,7 @@ boot_alloc_init(void)
 		for (int j = 0; j <= MAX_ORDER[i]; j++)
 			cprintf("%x\n", start[i][j]);*/
 
-	for (int i = 0; i <= MAX_ORDER[0]; i++)
+	/*for (int i = 0; i <= MAX_ORDER[0]; i++)
 		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
 
 	cprintf("After allocate a block of order 3.\n");
@@ -151,7 +151,7 @@ boot_alloc_init(void)
 	cprintf("After reclaiming the block of order 3.\n");
 	kfree(p);
 	for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);*/
 	//base = ROUNDUP(end, PGSIZE);
 	//for (int i = 0; i < MAX_ORDER; i++)
 	//	start[i + 1] = start[i] + pow_2(MAX_ORDER - i);

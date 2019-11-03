@@ -20,6 +20,9 @@ trap_init(void)
 	// 1. The macro SETGATE in inc/mmu.h should help you, as well as the
 	// T_* defines in inc/traps.h;
 	// 2. T_SYSCALL is different from the others.
+	for (int i = 0; i < 256; i++)
+		SETGATE(idt[i], 0, SEG_KCODE<<3, vectors[i], 0);
+	SETGATE(idt[T_SYSCALL], 1, SEG_KCODE<<3, vectors[T_SYSCALL], DPL_USER);
 }
 
 void

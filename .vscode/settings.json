@@ -5,6 +5,7 @@
         "kalloc.h": "c",
         "console.h": "c",
         "string.h": "c",
-        "types.h": "c"
+        "types.h": "c",
+        "traps.h": "c"
     }
 }

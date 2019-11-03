@@ -26,6 +26,11 @@ seg_init(void)
 	// an interrupt from CPL=0 to DPL=3.
 	// Your code here.
 	//
+	gdt[SEG_KCODE] = SEG(STA_R | STA_X, 0, 0xffffffff, 0);
+	gdt[SEG_KDATA] = SEG(STA_W | STA_R, 0, 0xffffffff, 0);
+	gdt[SEG_UCODE] = SEG(STA_R | STA_X, 0, 0xffffffff, DPL_USER);
+	gdt[SEG_UDATA] = SEG(STA_R | STA_W, 0, 0xffffffff, DPL_USER);
+	lgdt(gdt, sizeof(gdt));
 	// Hints:
 	// 1. You should set up at least four segments: kern code, kern data,
 	// user code, user data;
