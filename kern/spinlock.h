@@ -19,13 +19,32 @@ struct spinlock {
 #endif
 };
 
+struct mcslock_node {
+	volatile uint32_t waiting;
+	struct mcslock_node *volatile next;
+};
+
+struct mcslock {
+	struct mcslock_node *locked;       // Is the lock held?
+#ifdef DEBUG_SPINLOCK
+	// For debugging:
+	char *name;            // Name of lock.
+	struct CpuInfo *cpu;   // The CPU holding the lock.
+	uintptr_t pcs[10];     // The call stack (an array of program counters)
+	                       // that locked the lock.
+#endif
+};
+
 void __spin_initlock(struct spinlock *lk, char *name);
 void spin_lock(struct spinlock *lk);
 void spin_unlock(struct spinlock *lk);
+void mspin_lock(struct mcslock *lk);
+void mspin_unlock(struct mcslock *lk);
 
 #define spin_initlock(lock)   __spin_initlock(lock, #lock)
 
 extern struct spinlock kernel_lock;
+extern struct mcslock mkernel_lock;
 
 static inline void
 lock_kernel(void)

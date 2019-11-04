@@ -6,6 +6,11 @@
         "console.h": "c",
         "string.h": "c",
         "types.h": "c",
-        "traps.h": "c"
+        "traps.h": "c",
+        "assert.h": "c",
+        "vm.h": "c",
+        "cpu.h": "c",
+        "x86.h": "c",
+        "trap.h": "c"
     }
 }

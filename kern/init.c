@@ -81,7 +81,11 @@ mp_main(void)
 {
 	// TODO: Your code here.
 	// You need to initialize something.
-
+	kvm_switch();
+	seg_init();
+	lapic_init();
+	cprintf("Starting CPU%d.\n", cpunum());
+	idt_init();
 	xchg(&thiscpu->cpu_status, CPU_STARTED); // tell boot_aps() we're up
 	for (;;);
 }

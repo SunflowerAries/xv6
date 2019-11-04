@@ -2,6 +2,8 @@
 #define INC_X86_H
 
 #include <inc/types.h>
+#define Xchg(addr, new) ((__typeof__(*(addr)))xchg((volatile uint32_t *)(addr), (uint32_t)(new)))
+#define Cmpxchg(addr, old, new) ((__typeof__(*(addr)))cmpxchg((volatile uint32_t *)(addr), (uint32_t)(old), (uint32_t)(new)))
 
 static inline void
 breakpoint(void)
@@ -274,6 +276,17 @@ xchg(volatile uint32_t *addr, uint32_t newval)
 		     : "+m" (*addr), "=a" (result)
 		     : "1" (newval)
 		     : "cc");
+	return result;
+}
+
+static inline uint32_t
+cmpxchg(volatile uint32_t *addr, uint32_t old, uint32_t new) {
+	uint32_t result;
+
+	asm volatile("lock; cmpxchgl %2, %1"
+				 : "=a"(result)
+				 : "m"(*addr), "r"(new), "a"(old)
+				 : "cc", "memory");
 	return result;
 }
 
