@@ -2,7 +2,7 @@
 #define KERN_VM_H
 
 #include <inc/memlayout.h>
-
+#include <kern/proc.h>
 void vm_init(void);
 pde_t *kvm_init(void);
 void kvm_switch(void);

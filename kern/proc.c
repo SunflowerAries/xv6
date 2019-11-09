@@ -36,8 +36,19 @@ proc_alloc(void)
 	// - allocate kernel stack.
 	// - leave room for trap frame in kernel stack.
 	// - Set up new context to start executing at forkret, which returns to trapret.
-
-
+	int i;
+	for (i = 0; i < NPROC; i++)
+		if (ptable.proc[i].state == UNUSED) {
+			ptable.proc[i].state = EMBRYO;
+			ptable.proc[i].pid = nextpid++;
+			if ((ptable.proc[i].kstack = kalloc()) == NULL) {
+				ptable.proc[i].state = UNUSED;
+				return NULL;
+			}
+			break;
+		}
+	if (i == NPROC)
+		return NULL;
 }
 
 //
@@ -111,6 +122,9 @@ void
 user_init(void)
 {
 	// TODO: your code here.
+	struct proc *child = proc_alloc();
+	//child->parent->pid = 0;
+	ucode_load(child, );
 }
 
 //

@@ -11,6 +11,7 @@
         "vm.h": "c",
         "cpu.h": "c",
         "x86.h": "c",
-        "trap.h": "c"
+        "trap.h": "c",
+        "memlayout.h": "c"
     }
 }

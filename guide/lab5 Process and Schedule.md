@@ -43,18 +43,18 @@ You will now write the code in kern/proc.c necessary to run a user process. Beca
 
 The Lab 5 GNUmakefile generates a number of binary images in the obj/user/ directory. If you look at kern/Makefrag, you will notice some magic that "links" these binaries directly into the kernel executable as if they were .o files. The -b binary option on the linker command line causes these files to be linked in as "raw" uninterpreted binary files rather than as regular .o files produced by the compiler. (As far as the linker is concerned, these files do not have to be ELF images at all - they could be anything, such as text files or pictures!) If you look at obj/kern/kernel.sym after building the kernel, you will notice that the linker has "magically" produced a number of funny symbols with obscure names like _binary_obj_user_hello_start, _binary_obj_user_hello_end, and _binary_obj_user_hello_size. The linker generates these symbol names by mangling the file names of the binary files; the symbols provide the regular kernel code with a way to reference the embedded binary files.
 
-In i386_init() in kern/init.c you'll see code to run one of these binary images in a process. However, the critical functions to set up user process are not complete; you will need to fill them in.
+**In i386_init() in kern/init.c you'll see code to run one of these binary images in a process**. However, the critical functions to set up user process are not complete; you will need to fill them in.
 
 ### 5.2.3 Exercise 1
 
 In the file kern/proc.c, finish coding the following functions:
 
 - proc_init()
-    - Initialize the ptable.lock
+    - **Initialize the ptable.lock**
 - user_init()
     - Set up a single process.
 - proc_alloc()
-    - Find an UNUSED proc in ptable. If found, change state to EMBRYO and initialize state required to run in the kernel.
+    - Find an UNUSED proc in ptable. If found, change state to EMBRYO and **initialize state required to run in the kernel**.
 - ucode_load()
     - You will need to parse an ELF binary image, much like the boot loader already dose, and load its contents into the user address space of a new process.
 - ucode_run()
