@@ -3,8 +3,8 @@
 #include <inc/memlayout.h>
 #include <inc/x86.h>
 #include <inc/traps.h>
-
 #include <kern/trap.h>
+#include <kern/syscall.h>
 
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
@@ -36,4 +36,7 @@ trap(struct trapframe *tf)
 {
 	// You don't need to implement this function now, but you can write
 	// some code for debugging.
+	if (tf->trapno == T_SYSCALL)
+		syscall(tf->eax, tf->edx, tf->ecx, tf->ebx, tf->edi, tf->esi);
+	
 }

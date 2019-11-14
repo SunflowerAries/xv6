@@ -11,6 +11,7 @@
 
 #include <kern/kalloc.h>
 #include <kern/console.h>
+#include <kern/spinlock.h>
 
 // First address after kernel loaded from ELF file defined by the
 // kernel linker script in kernel.ld.
@@ -39,8 +40,14 @@ struct Buddykmem {
 	int num;
 };
 
+struct {
+	int use_lock;
+	struct Buddykmem *slot;
+	struct spinlock lock;
+} Buddy[2];
+
 struct run *base[2];
-struct Buddykmem *Buddy[2];
+//struct Buddykmem *Buddy[2];
 
 // Initialization happens in two phases.
 // 1. Call boot_alloc_init() while still using entrypgdir to place just
@@ -88,8 +95,8 @@ boot_alloc_init(void)
 
 		MAX_ORDER[i] = level;
 
-		Buddy[i] = (struct Buddykmem *)mystart;
-		memset(Buddy[i], 0, sizeof(struct Buddykmem) * (level + 1));
+		Buddy[i].slot = (struct Buddykmem *)mystart;
+		memset(Buddy[i].slot, 0, sizeof(struct Buddykmem) * (level + 1));
 		mystart += sizeof(struct Buddykmem) * (level + 1);
 		//cprintf("Buddy, mystart: %x %x\n", Buddy[i], mystart);
 
@@ -101,7 +108,7 @@ boot_alloc_init(void)
 		for (int j = 0; j <= level; j++) {
 			linkbase[i][j].next = &linkbase[i][j];
 			//cprintf("linkbase: %x\n", &linkbase[i][j]);
-			Buddy[i][j].free_list = &linkbase[i][j];
+			Buddy[i].slot[j].free_list = &linkbase[i][j];
 		}
 		start[i] = (int *)mystart;
 		start[i][0] = 0;
@@ -112,7 +119,8 @@ boot_alloc_init(void)
 	base[0] = (struct run *)ROUNDUP(mystart, PGSIZE);
 	base[1] = (struct run *)P2V(4 * 1024 * 1024);
 	//cprintf("base[0]: %x, base[1]: %x\n", base[0], base[1]);
-
+	for (int i = 0; i < 2; i++)
+		Buddy[i].use_lock = 0;
 	Buddyfree_range((void *)base[0], MAX_ORDER[0]);
 	/*for (int i = 0; i < 2; i++)
 		for (int j = 0; j <= MAX_ORDER[i]; j++)
@@ -164,6 +172,8 @@ alloc_init(void)
 {
 	// TODO: Your code here.
 	Buddyfree_range((void *)base[1], MAX_ORDER[1]);
+	for (int i = 0; i < 2; i++)
+		Buddy[i].use_lock = 1;
 	/*for (int i = 0; i <= MAX_ORDER[1]; i++)
 		cprintf("Buddy: %x\n", Buddy[1][i].free_list->next);
 
@@ -220,6 +230,8 @@ Buddykfree(char *v)
 	int p = idx;
 	int count = 0;
 	//cprintf("v: %x, idx: %x, p: %x\n", v, idx, p);
+	if (Buddy[id].use_lock)
+		spinlock(&Buddy[id].lock);
 	while (order[id][p] != 1) {
 		count++;
 		p = start[id][count] + (idx >> count);
@@ -234,8 +246,8 @@ Buddykfree(char *v)
 		//cprintf("p: %x, buddy: %x\n", p, buddy);
 		buddypos = (char *)base[id] + ((uint32_t)(v - (char *)base[id]) ^ mark);
 		//cprintf("buddypos: %x, mark: %x\n", buddypos, mark);
-		struct run *iter = Buddy[id][count].free_list;
-		while (iter->next != (struct run *)buddypos && iter->next != Buddy[id][count].free_list)
+		struct run *iter = Buddy[id].slot[count].free_list;
+		while (iter->next != (struct run *)buddypos && iter->next != Buddy[id].slot[count].free_list)
 			iter = iter->next;
 		// buddy is occupied
 		// have little change
@@ -243,8 +255,8 @@ Buddykfree(char *v)
 		//	break;
 		struct run *uni = iter->next;
 		iter->next = uni->next;
-		Buddy[id][count].num--;
-		Buddy[id][count].free_list = iter->next;
+		Buddy[id].slot[count].num--;
+		Buddy[id].slot[count].free_list = iter->next;
 		v = (v > (char *)uni) ? (char *)uni : v;
 		count++;
 		mark <<= 1;
@@ -255,9 +267,11 @@ Buddykfree(char *v)
 		buddy = p ^ 1;
 	}
 	r = (struct run *)v;
-	r->next = Buddy[id][count].free_list->next;
-	Buddy[id][count].free_list->next = r;
-	Buddy[id][count].num++;
+	r->next = Buddy[id].slot[count].free_list->next;
+	Buddy[id].slot[count].free_list->next = r;
+	Buddy[id].slot[count].num++;
+	if (Buddy[id].use_lock)
+		spin_unlock(&Buddy[id].lock);
 }
 
 void
@@ -278,10 +292,10 @@ Buddyfree_range(void *vstart, int level)
 	memset(vstart, 1, PGSIZE * pow_2(level));
 	r = (struct run *)vstart;
 	//cprintf("%x, %x\n", Buddy[id][level].free_list->next, Buddy[id][level].free_list);
-	r->next = Buddy[id][level].free_list->next;
-	Buddy[id][level].free_list->next = r;
+	r->next = Buddy[id].slot[level].free_list->next;
+	Buddy[id].slot[level].free_list->next = r;
 	//cprintf("%x, %x\n", Buddy[id][level].free_list->next, Buddy[id][level].free_list);
-	Buddy[id][level].num++;
+	Buddy[id].slot[level].num++;
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -318,9 +332,9 @@ split(char *r, int low, int high)
 		size >>= 1;
 		struct run *p = (struct run *)((uint32_t)r + PGSIZE * size);
 		//add high
-		p->next = Buddy[id][high].free_list->next;
-		Buddy[id][high].free_list->next = p;
-		Buddy[id][high].num++;
+		p->next = Buddy[id].slot[high].free_list->next;
+		Buddy[id].slot[high].free_list->next = p;
+		Buddy[id].slot[high].num++;
 	}
 	order[id][start[id][high] + (idx >> high)] = 1;
 	//cprintf("pos: %x\n", start[id][high] + (idx >> high));
@@ -329,17 +343,24 @@ split(char *r, int low, int high)
 char *
 Buddykalloc(int order)
 {
-	for (int i = 0; i < 2; i++)
+	for (int i = 0; i < 2; i++) {
+		if (Buddy[i].use_lock)
+			spin_lock(&Buddy[i].lock);
 		for (int currentorder = order; currentorder <= MAX_ORDER[i]; currentorder++)
-			if (Buddy[i][currentorder].num > 0) {
+			if (Buddy[i].slot[currentorder].num > 0) {
 				struct run *r;
-				r = Buddy[i][currentorder].free_list->next;
-				Buddy[i][currentorder].free_list->next = r->next;
-				Buddy[i][currentorder].num--;
+				r = Buddy[i].slot[currentorder].free_list->next;
+				Buddy[i].slot[currentorder].free_list->next = r->next;
+				Buddy[i].slot[currentorder].num--;
 				//cprintf("%d\n", currentorder);
 				split((char *)r, order, currentorder);
+				if (Buddy[i].use_lock)
+					spin_unlock(&Buddy[i].lock);
 				return (char *)r;
-			} 
+			}
+		if (Buddy[i].use_lock)
+			spin_unlock(&Buddy[i].lock);
+	}
 	return NULL;
 }
 // --------------------------------------------------------------
@@ -358,7 +379,7 @@ check_free_list(void)
 	bool exist;
 	for (int i = 0; i < 2; i++)
 		for (int j = 0; j <= MAX_ORDER[i]; j++)
-			if(Buddy[i][j].free_list)
+			if(Buddy[i].slot[j].free_list)
 				exist = true;
 	if (!exist)
 		panic("'Buddykmem.free_list' is a null pointer!");

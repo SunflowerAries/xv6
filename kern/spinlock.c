@@ -30,6 +30,15 @@ __spin_initlock(struct spinlock *lk, char *name)
 	lk->cpu = 0;
 }
 
+void
+__mspin_initlock(struct mcslock *lk, char *name)
+{
+	// TODO: Your code here.
+	lk->locked = NULL;
+	lk->name = name;
+	lk->cpu = 0;
+}
+
 // Acquire the lock.
 // Loops (spins) until the lock is acquired.
 // Holding a lock for a long time may cause
@@ -51,8 +60,7 @@ spin_lock(struct spinlock *lk)
 void
 mspin_lock(struct mcslock *lk)
 {
-	static __thread struct mcslock_node node;
-	struct mcslock_node *me = &node;
+	struct mcslock_node *me = &thiscpu->node;
 	struct mcslock_node *tmp = me;
 	me->next = NULL;
 	struct mcslock_node *pre = Xchg(&lk->locked, tmp);
@@ -87,8 +95,7 @@ spin_unlock(struct spinlock *lk)
 void
 mspin_unlock(struct mcslock *lk)
 {
-	static __thread struct mcslock_node node;
-	struct mcslock_node *me = &node;
+	struct mcslock_node *me = &thiscpu->node;
 	struct mcslock_node *tmp = me;
 	if (me->next == NULL) {
 		if (Cmpxchg(&lk->locked, tmp, NULL) == me)

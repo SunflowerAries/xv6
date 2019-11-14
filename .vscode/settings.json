@@ -12,6 +12,9 @@
         "cpu.h": "c",
         "x86.h": "c",
         "trap.h": "c",
-        "memlayout.h": "c"
+        "memlayout.h": "c",
+        "proc.h": "c",
+        "spinlock.h": "c",
+        "syscall.h": "c"
     }
 }

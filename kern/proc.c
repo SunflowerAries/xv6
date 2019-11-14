@@ -19,6 +19,7 @@ uint32_t nextpid = 1;
 extern pde_t *kpgdir;
 extern void forkret(void);
 extern void trapret(void);
+extern char *_binary_obj_user_hello_start, *_binary_obj_user_hello_end, *_binary_obj_user_hello_size;
 void swtch(struct context **, struct context*);
 
 
@@ -29,6 +30,7 @@ void
 proc_init(void)
 {
 	// TODO: your code here
+	__spin_initlock(&ptable.lock, "ptable");
 }
 
 // Look in the process table for an UNUSED proc.
@@ -45,19 +47,30 @@ proc_alloc(void)
 	// - allocate kernel stack.
 	// - leave room for trap frame in kernel stack.
 	// - Set up new context to start executing at forkret, which returns to trapret.
-	int i;
-	for (i = 0; i < NPROC; i++)
-		if (ptable.proc[i].state == UNUSED) {
-			ptable.proc[i].state = EMBRYO;
-			ptable.proc[i].pid = nextpid++;
-			if ((ptable.proc[i].kstack = kalloc()) == NULL) {
-				ptable.proc[i].state = UNUSED;
+	struct proc* p;
+	spin_lock(&ptable.lock);
+	for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+		if (p->state == UNUSED) {
+			p->state = EMBRYO;
+			p->pid = nextpid++;
+			spin_unlock(&ptable.lock);
+			if ((p->kstack = kalloc()) == NULL) {
+				p->state = UNUSED;
 				return NULL;
 			}
-			break;
+			char* begin = p->kstack + KSTACKSIZE; // Does the setup of trapframe happen before these?
+			begin -= sizeof(p->tf);
+			p->tf = (struct trapframe *)begin;
+			begin -= 4;
+			*(uint32_t *)begin = (uint32_t)trapret;
+			begin -= sizeof(p->context);
+			p->context = (struct context *)begin;
+			memset(p->context, 0, sizeof(p->context));
+			p->context->eip = (uint32_t)forkret;
+			return p;
 		}
-	if (i == NPROC)
-		return NULL;
+	spin_unlock(&ptable.lock);
+	return NULL;
 }
 
 //
@@ -113,11 +126,23 @@ ucode_load(struct proc *p, uint8_t *binary) {
 	//  What? 
 
 	// TODO: Your code here.
-
+	region_alloc(p, 0, (int)_binary_obj_user_hello_size);
+	struct Proghdr *ph, *eph;
+	struct Elf *elf = (struct Elf *)binary;
+	ph = (struct Proghdr *) (binary + elf->e_phoff);
+	eph = ph + elf->e_phnum;
+	void *begin = 0;
+	for (; ph < eph; ph++)
+		if (ph->p_type == ELF_PROG_LOAD) {
+			memmove(begin, (void *)ph->p_va, ph->p_filesz);
+			begin += PGSIZE;
+		}
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
-
 	// TODO: Your code here.
+	char *stack = kalloc();
+	if (map_region(p->pgdir, (void *)(USTACKTOP - PGSIZE), PGSIZE, V2P(stack), PTE_U | PTE_W) < 0)
+		panic("USER STACK.");
 }
 
 //
@@ -131,9 +156,25 @@ void
 user_init(void)
 {
 	// TODO: your code here.
-	struct proc *child = proc_alloc();
-	//child->parent->pid = 0;
-	ucode_load(child, );
+	struct proc *child;
+	if ((child = proc_alloc()) == NULL)
+		panic("Allocate User Process.");
+	if ((child->pgdir = kvm_init()) == NULL)
+		panic("User Pagedir.");
+	// TODO: can't understand the reason for parent id.
+	//child->parent->pid = 0; 
+	ucode_load(child, (uint8_t *)_binary_obj_user_hello_start);
+	memset(child->tf, 0, sizeof(child->tf));
+	child->tf->cs = (SEG_UCODE << 3) | DPL_USER;
+	child->tf->ds = (SEG_UDATA << 3) | DPL_USER;
+	child->tf->es = (SEG_UDATA << 3) | DPL_USER;
+	child->tf->ss = (SEG_UDATA << 3) | DPL_USER;
+	child->tf->eflags = FL_IF;
+	child->tf->esp = PGSIZE;
+	child->tf->eip = 0;
+	spin_lock(&ptable.lock);
+	child->state = RUNNABLE;
+	spin_unlock(&ptable.lock);
 }
 
 //
@@ -149,6 +190,23 @@ ucode_run(void)
 	// Hints:
 	// - you may need sti() and cli()
 	// - you may need uvm_switch(), swtch() and kvm_switch()
+	// TODO: where is the scheduler, thisproc may be wrong
+	struct proc *p;
+	thiscpu->proc = NULL;
+	while (1) {
+		sti();
+		spin_lock(&ptable.lock);
+		for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+			if (p->state == RUNNABLE) {
+				uvm_switch(p);
+				p->state = RUNNING;
+				thiscpu->proc = p;
+				swtch(&thiscpu->scheduler, p->context);
+				kvm_switch();
+				thiscpu->proc = NULL;
+			}
+		spin_unlock(&ptable.lock);
+	}
 }
 
 struct proc*
@@ -167,6 +225,8 @@ void
 sched(void)
 {
 	// TODO: your code here.
+	struct proc *p = thisproc();
+	swtch(&p->context, thiscpu->scheduler);
 }
 
 
@@ -177,6 +237,7 @@ forkret(void)
 	// That means the first proc starts here.
 	// When it returns from forkret, it need to return to trapret.
 	// TODO: your code here.
+	spin_unlock(&ptable.lock);
 
 }
 
@@ -185,4 +246,10 @@ exit(void)
 {
 	// sys_exit() call to here.
 	// TODO: your code here.
+	struct proc *p = thisproc();
+	vm_free(p->pgdir);
+	vm_free(p->kstack);
+	spinlock(&ptable.lock);
+	p->state = ZOMBIE;
+	sched();
 }

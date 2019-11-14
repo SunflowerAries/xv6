@@ -4,6 +4,7 @@
 #include <inc/types.h>
 #include <inc/memlayout.h>
 #include <inc/mmu.h>
+#include <kern/spinlock.h>
 
 // Maximum number of CPUs
 #define NCPU  8
@@ -25,6 +26,7 @@ struct CpuInfo {
 	struct proc *proc;				// The process running on this cpu or null
 	int32_t ncli;					// Depth of pushcli nesting
 	int32_t intena;					// Were interrupts enabled before pushcli?
+	struct mcslock_node node;		// Mcslock node
 };
 
 // Initialized in mpconfig.c

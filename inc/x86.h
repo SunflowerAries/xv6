@@ -289,6 +289,7 @@ cmpxchg(volatile uint32_t *addr, uint32_t old, uint32_t new) {
 				 : "cc", "memory");
 	return result;
 }
+
 static inline void
 cli(void)
 {

@@ -29,7 +29,7 @@ i386_init()
 	vm_init();
 	seg_init();
 	trap_init();
-
+	porc_init();
 	mp_init();
 	lapic_init();
 	pic_init();
@@ -40,6 +40,7 @@ i386_init()
 	cprintf("VM: Init success.\n");
 	check_free_list();
 	cprintf("Finish.\n");
+	user_init();
 	// Spin.
     while (1);
 }

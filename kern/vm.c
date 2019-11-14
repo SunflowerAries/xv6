@@ -227,6 +227,16 @@ region_alloc(struct proc *p, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
+	// TODO: Why do we need to rewrite a function just like map_region?
+	char *begin = ROUNDDOWN(va, PGSIZE);
+	char *end = ROUNDUP(va + len, PGSIZE);
+	while (begin < end) {
+		char *page = kalloc();
+		memset(page, 0, PGSIZE);
+		if (map_region(p->pgdir, begin, PGSIZE, V2P(page), PTE_W | PTE_U) < 0)
+			panic("Map space for user process.");
+		begin += PGSIZE;
+	}
 }
 
 void
@@ -266,4 +276,13 @@ uvm_switch(struct proc *p)
 	// - You may need pushcli() and popcli()
 	// - You need to set TSS and ltr(SEG_TSS << 3)
 	// - You need to switch to process's address space
+	pushcli();
+	thiscpu->gdt[SEG_TSS] = SEG16(STS_T32A, &thiscpu->cpu_ts, sizeof(thiscpu->cpu_ts) - 1, 0);
+	thiscpu->gdt[SEG_TSS].s = 0;
+	thiscpu->cpu_ts.ss0 = SEG_KDATA << 3;
+	thiscpu->cpu_ts.esp0 = (uintptr_t)thiscpu->proc->kstack + KSTACKSIZE;
+	thiscpu->cpu_ts.iomb = (uint16_t)0xFFFF;
+	ltr(SEG_TSS << 3);
+	lcr3(V2P(p->pgdir));
+	popcli();
 }
