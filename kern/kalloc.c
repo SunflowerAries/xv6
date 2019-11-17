@@ -109,6 +109,7 @@ boot_alloc_init(void)
 			linkbase[i][j].next = &linkbase[i][j];
 			//cprintf("linkbase: %x\n", &linkbase[i][j]);
 			Buddy[i].slot[j].free_list = &linkbase[i][j];
+			//cprintf("Buddy[%d]: %x\n", i, Buddy[i].slot[j].free_list);
 		}
 		start[i] = (int *)mystart;
 		start[i][0] = 0;
@@ -119,50 +120,51 @@ boot_alloc_init(void)
 	base[0] = (struct run *)ROUNDUP(mystart, PGSIZE);
 	base[1] = (struct run *)P2V(4 * 1024 * 1024);
 	//cprintf("base[0]: %x, base[1]: %x\n", base[0], base[1]);
-	for (int i = 0; i < 2; i++)
+	for (int i = 0; i < 2; i++) {
 		Buddy[i].use_lock = 0;
+		char *name = "Buddykmem";
+		//cprintf("%s\n", name);
+		__spin_initlock(&Buddy[i].lock, name);
+	}	
+		
 	Buddyfree_range((void *)base[0], MAX_ORDER[0]);
 	/*for (int i = 0; i < 2; i++)
 		for (int j = 0; j <= MAX_ORDER[i]; j++)
 			cprintf("%x\n", start[i][j]);*/
-
 	/*for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0].slot[i].free_list->next);
 
 	cprintf("After allocate a block of order 3.\n");
 	char *p = Buddykalloc(3);
 	for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0].slot[i].free_list->next);
 
 	cprintf("After allocate a block of order 0.\n");
 	char *q = Buddykalloc(0);
 	for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0].slot[i].free_list->next);
 
 	cprintf("After allocate a block of order 8.\n");
 	char *s = Buddykalloc(8);
 	for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0].slot[i].free_list->next);
 
 	cprintf("p: %x, q: %x, s: %x\n", p, q, s);
 
 	cprintf("After reclaiming the block of order 0.\n");
 	kfree(q);
 	for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0].slot[i].free_list->next);
 
 	cprintf("After reclaiming the block of order 8.\n");
 	kfree(s);
 	for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0].slot[i].free_list->next);
 
 	cprintf("After reclaiming the block of order 3.\n");
 	kfree(p);
 	for (int i = 0; i <= MAX_ORDER[0]; i++)
-		cprintf("Buddy[%d]: %x\n", i, Buddy[0][i].free_list->next);*/
-	//base = ROUNDUP(end, PGSIZE);
-	//for (int i = 0; i < MAX_ORDER; i++)
-	//	start[i + 1] = start[i] + pow_2(MAX_ORDER - i);
+		cprintf("Buddy[%d]: %x\n", i, Buddy[0].slot[i].free_list->next);*/
 	
 	check_free_list();
 }
@@ -231,7 +233,7 @@ Buddykfree(char *v)
 	int count = 0;
 	//cprintf("v: %x, idx: %x, p: %x\n", v, idx, p);
 	if (Buddy[id].use_lock)
-		spinlock(&Buddy[id].lock);
+		spin_lock(&Buddy[id].lock);
 	while (order[id][p] != 1) {
 		count++;
 		p = start[id][count] + (idx >> count);

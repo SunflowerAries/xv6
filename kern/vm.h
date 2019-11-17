@@ -3,6 +3,9 @@
 
 #include <inc/memlayout.h>
 #include <kern/proc.h>
+#include <inc/elf.h>
+#include <inc/mmu.h>
+
 void vm_init(void);
 pde_t *kvm_init(void);
 void kvm_switch(void);
@@ -11,6 +14,9 @@ void vm_free(pde_t *);
 void seg_init(void);
 void region_alloc(struct proc *p, void *va, size_t len);
 void uvm_switch(struct proc *p);
+int map_region(pde_t *pgdir, void *va, uint32_t size, uint32_t pa, int32_t perm);
+int loaduvm(pde_t *pgdir, char *addr, struct Proghdr *ph);
+pte_t *pgdir_walk(pde_t *pgdir, const void *va, int32_t alloc);
 
 void pushcli(void);
 void popcli(void);

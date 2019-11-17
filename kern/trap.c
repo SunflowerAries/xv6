@@ -2,9 +2,13 @@
 #include <inc/mmu.h>
 #include <inc/memlayout.h>
 #include <inc/x86.h>
+#include <inc/stdio.h>
 #include <inc/traps.h>
+#include <inc/assert.h>
 #include <kern/trap.h>
 #include <kern/syscall.h>
+#include <kern/proc.h>
+#include <kern/cpu.h>
 
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
@@ -36,7 +40,28 @@ trap(struct trapframe *tf)
 {
 	// You don't need to implement this function now, but you can write
 	// some code for debugging.
-	if (tf->trapno == T_SYSCALL)
+	struct proc *p = thisproc();
+	if (tf->trapno == T_SYSCALL) {
+		p->tf = tf;
 		syscall(tf->eax, tf->edx, tf->ecx, tf->ebx, tf->edi, tf->esi);
+	}
+	switch (tf->trapno) {
+	case T_IRQ0 + IRQ_TIMER:
+		cprintf("in timer.\n");
+		//lapic_eoi();
+		break;
 	
+	default:
+		if (p == NULL || (tf->cs & 3) == 0) {
+			cprintf("unexpected trap %d from cpu %d eip: %x (cr2=0x%x)\n",
+              tf->trapno, cpunum(), tf->eip, rcr2());
+      		panic("trap");
+		}
+		cprintf("pid %d : trap %d err %d on cpu %d "
+            "eip 0x%x addr 0x%x--kill proc\n",
+            p->pid, tf->trapno,
+            tf->err, cpunum(), tf->eip, rcr2());
+	}
+	//if (p && p->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER)
+	//	yield();
 }

@@ -29,7 +29,7 @@ i386_init()
 	vm_init();
 	seg_init();
 	trap_init();
-	porc_init();
+	proc_init();
 	mp_init();
 	lapic_init();
 	pic_init();
@@ -41,6 +41,7 @@ i386_init()
 	check_free_list();
 	cprintf("Finish.\n");
 	user_init();
+	ucode_run();
 	// Spin.
     while (1);
 }

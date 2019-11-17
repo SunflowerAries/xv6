@@ -60,14 +60,14 @@ seg_init(void)
 // Hint 2: look at inc/mmu.h for useful macros that manipulate page
 // table and page directory entries.
 //
-static pte_t *
+pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int32_t alloc)
 {
 	// TODO: Fill this function in
 	pde_t *pde = &pgdir[PDX(va)];
 	pte_t *pgtab;
 	if ((*pde & PTE_P) == 1)
-	    pgtab = (pte_t *)P2V((*pde >> 12) << 12);
+	    pgtab = (pte_t *)P2V(PTE_ADDR(*pde));
 	else {
 	    if (alloc == 0 || (pgtab = (pte_t *)kalloc()) == NULL)
 	        return NULL;
@@ -83,7 +83,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int32_t alloc)
 // Use permission bits perm|PTE_P for the entries.
 //
 // Hint: the TA solution uses pgdir_walk
-static int // What to return?
+int // What to return?
 map_region(pde_t *pgdir, void *va, uint32_t size, uint32_t pa, int32_t perm)
 {
 	// TODO: Fill this function in
@@ -98,6 +98,19 @@ map_region(pde_t *pgdir, void *va, uint32_t size, uint32_t pa, int32_t perm)
 		pa += PGSIZE;
 		align += PGSIZE;
 	} 
+	return 0;
+}
+
+int
+loaduvm(pde_t *pgdir, char *addr, struct Proghdr *ph)
+{
+	pte_t *pte;
+	if ((pte = pgdir_walk(pgdir, addr, 1)) == 0)
+		return -1;
+	void *dst = P2V(PTE_ADDR(*pte));
+	memmove(dst, P2V(ph->p_pa), ph->p_memsz);
+	if (ph->p_memsz > ph->p_filesz)
+		memset(dst + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
 	return 0;
 }
 
@@ -227,12 +240,11 @@ region_alloc(struct proc *p, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
-	// TODO: Why do we need to rewrite a function just like map_region?
 	char *begin = ROUNDDOWN(va, PGSIZE);
 	char *end = ROUNDUP(va + len, PGSIZE);
 	while (begin < end) {
 		char *page = kalloc();
-		memset(page, 0, PGSIZE);
+		//memset(page, 0, PGSIZE);
 		if (map_region(p->pgdir, begin, PGSIZE, V2P(page), PTE_W | PTE_U) < 0)
 			panic("Map space for user process.");
 		begin += PGSIZE;

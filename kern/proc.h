@@ -37,6 +37,8 @@ void porc_init(void);
 void user_init(void);
 void user_run(struct proc *p);
 void ucode_run(void);
+struct proc* thisproc(void);
+void proc_init(void);
 
 void exit(void);
 
@@ -46,8 +48,8 @@ void exit(void);
 
 #define UCODE_LOAD(p, x)						\
 	do {								\
-		extern uint8_t UCODE_PASTE3(_binary_obj_, x, _start)[];	\
-		ucode_load(p, UCODE_PASTE3(_binary_obj_, x, _start));		\
+		extern char UCODE_PASTE3(_binary_obj_, x, _start)[];	\
+		ucode_load(p, (uint8_t *)UCODE_PASTE3(_binary_obj_, x, _start));		\
 	} while (0)
 
 #endif /* !KERN_PROC_H */

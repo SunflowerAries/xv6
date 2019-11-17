@@ -7,6 +7,7 @@
 #include <inc/string.h>
 #include <kern/cpu.h>
 #include <kern/spinlock.h>
+#include <kern/vm.h>
 
 // The big kernel lock
 struct spinlock kernel_lock = {
@@ -50,10 +51,12 @@ spin_lock(struct spinlock *lk)
 	// It also serializes, so that reads after acquire are not
 	// reordered before it. 
 	// TODO: Your code here.
+	pushcli();
 	if (lk->cpu == thiscpu)
 		panic("spinlock");
 	int locked = 1;
 	while(xchg(&lk->locked, locked));
+	asm volatile("" : : : "memory");
 	lk->cpu = thiscpu;
 }
 
@@ -87,9 +90,11 @@ spin_unlock(struct spinlock *lk)
 	if (lk->cpu == thiscpu) {
 		lk->cpu = 0;
 		//xchg(&lk->locked, 0);
+		asm volatile("" : : : "memory");
 		asm volatile("movl $0, %0" : "+m"(lk->locked) : );
 	} else 
 		panic("spin_unlock");
+	popcli();
 }
 
 void

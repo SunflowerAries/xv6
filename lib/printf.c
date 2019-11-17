@@ -1,11 +1,3 @@
-<<<<<<< HEAD
-#include<inc/stdio.h>
-int
-vcprintf(const char *fmt, va_list ap)
-{
-	
-	return 
-=======
 // Implementation of cprintf console output for user environments,
 // based on printfmt() and the sys_cputs() system call.
 //
@@ -53,23 +45,12 @@ vcprintf(const char *fmt, va_list ap)
 	sys_cputs(b.buf, b.idx);
 
 	return b.cnt;
->>>>>>> 50cb24af7f1301c1d54118e569067e0e9605cfe7
 }
 
 int
 cprintf(const char *fmt, ...)
 {
 	va_list ap;
-<<<<<<< HEAD
-	int rc;
-
-	va_start(ap, fmt);
-	rc = vcprintf(fmt, ap);
-	va_end(ap);
-
-	return rc;
-}
-=======
 	int cnt;
 
 	va_start(ap, fmt);
@@ -78,5 +59,3 @@ cprintf(const char *fmt, ...)
 
 	return cnt;
 }
-
->>>>>>> 50cb24af7f1301c1d54118e569067e0e9605cfe7

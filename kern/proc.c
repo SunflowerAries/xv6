@@ -48,6 +48,7 @@ proc_alloc(void)
 	// - leave room for trap frame in kernel stack.
 	// - Set up new context to start executing at forkret, which returns to trapret.
 	struct proc* p;
+	char* begin;
 	spin_lock(&ptable.lock);
 	for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
 		if (p->state == UNUSED) {
@@ -58,14 +59,14 @@ proc_alloc(void)
 				p->state = UNUSED;
 				return NULL;
 			}
-			char* begin = p->kstack + KSTACKSIZE; // Does the setup of trapframe happen before these?
-			begin -= sizeof(p->tf);
+			begin = p->kstack + KSTACKSIZE; // Does the setup of trapframe happen before these?
+			begin -= sizeof(*p->tf);
 			p->tf = (struct trapframe *)begin;
 			begin -= 4;
 			*(uint32_t *)begin = (uint32_t)trapret;
-			begin -= sizeof(p->context);
+			begin -= sizeof(*p->context);
 			p->context = (struct context *)begin;
-			memset(p->context, 0, sizeof(p->context));
+			memset(p->context, 0, sizeof(*p->context));
 			p->context->eip = (uint32_t)forkret;
 			return p;
 		}
@@ -126,21 +127,32 @@ ucode_load(struct proc *p, uint8_t *binary) {
 	//  What? 
 
 	// TODO: Your code here.
-	region_alloc(p, 0, (int)_binary_obj_user_hello_size);
+	cprintf("Enter alloc.\n");
 	struct Proghdr *ph, *eph;
+	cprintf("Before assigning elf.\n");
 	struct Elf *elf = (struct Elf *)binary;
+	cprintf("%x", elf);
+	cprintf("Before assigning begin.\n");
+	cprintf("%x\n", elf->e_entry);
+	char *begin = (char *)elf->e_entry;
+	cprintf("After assigning begin.\n");
+	p->tf->eip = (uintptr_t)begin;
+	cprintf("Before alloc.\n");
+	region_alloc(p, begin, (int)_binary_obj_user_hello_size);
+	cprintf("After alloc.\n");
 	ph = (struct Proghdr *) (binary + elf->e_phoff);
 	eph = ph + elf->e_phnum;
-	void *begin = 0;
 	for (; ph < eph; ph++)
 		if (ph->p_type == ELF_PROG_LOAD) {
-			memmove(begin, (void *)ph->p_va, ph->p_filesz);
-			begin += PGSIZE;
+			if (loaduvm(p->pgdir, begin, ph) < 0)
+				panic("Load segment.");
+			begin += ph->p_memsz;
 		}
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 	// TODO: Your code here.
 	char *stack = kalloc();
+	p->tf->esp = USTACKTOP;
 	if (map_region(p->pgdir, (void *)(USTACKTOP - PGSIZE), PGSIZE, V2P(stack), PTE_U | PTE_W) < 0)
 		panic("USER STACK.");
 }
@@ -159,22 +171,30 @@ user_init(void)
 	struct proc *child;
 	if ((child = proc_alloc()) == NULL)
 		panic("Allocate User Process.");
+	cprintf("Finish allocate proc.\n");
 	if ((child->pgdir = kvm_init()) == NULL)
 		panic("User Pagedir.");
+	cprintf("Finish allocate pgdir %x.\n", child->pgdir);
 	// TODO: can't understand the reason for parent id.
-	//child->parent->pid = 0; 
+	//cprintf("Before pid.\n");
+	//struct proc *parent = child->parent;
+	//parent->pid = 0;
+	//cprintf("After pid.\n");
+	cprintf("%s", child->parent);
+	cprintf("Before Load.\n");
+	cprintf("start: %x, size: %x\n", _binary_obj_user_hello_start, _binary_obj_user_hello_size);
 	ucode_load(child, (uint8_t *)_binary_obj_user_hello_start);
-	memset(child->tf, 0, sizeof(child->tf));
+	cprintf("Finish Load.\n");
+	memset(child->tf, 0, sizeof(*child->tf));
 	child->tf->cs = (SEG_UCODE << 3) | DPL_USER;
 	child->tf->ds = (SEG_UDATA << 3) | DPL_USER;
 	child->tf->es = (SEG_UDATA << 3) | DPL_USER;
 	child->tf->ss = (SEG_UDATA << 3) | DPL_USER;
 	child->tf->eflags = FL_IF;
-	child->tf->esp = PGSIZE;
-	child->tf->eip = 0;
 	spin_lock(&ptable.lock);
 	child->state = RUNNABLE;
 	spin_unlock(&ptable.lock);
+	cprintf("Finish all the environment for usr.\n");
 }
 
 //
@@ -247,9 +267,7 @@ exit(void)
 	// sys_exit() call to here.
 	// TODO: your code here.
 	struct proc *p = thisproc();
-	vm_free(p->pgdir);
-	vm_free(p->kstack);
-	spinlock(&ptable.lock);
+	spin_lock(&ptable.lock);
 	p->state = ZOMBIE;
 	sched();
 }

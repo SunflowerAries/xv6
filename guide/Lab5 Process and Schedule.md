@@ -1,4 +1,4 @@
-# 5 lab5 Process
+# 5 Lab5 Process
 
 `Two week`
 
@@ -103,4 +103,4 @@ Finish coding the following functions:
 
 Answer the following questions:
 
-1. what dose pushcli() and popcli() do? And why?
+1. what does pushcli() and popcli() do? And why?
