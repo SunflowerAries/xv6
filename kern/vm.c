@@ -83,7 +83,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int32_t alloc)
 // Use permission bits perm|PTE_P for the entries.
 //
 // Hint: the TA solution uses pgdir_walk
-int // What to return?
+static int // What to return?
 map_region(pde_t *pgdir, void *va, uint32_t size, uint32_t pa, int32_t perm)
 {
 	// TODO: Fill this function in
@@ -102,15 +102,32 @@ map_region(pde_t *pgdir, void *va, uint32_t size, uint32_t pa, int32_t perm)
 }
 
 int
-loaduvm(pde_t *pgdir, char *addr, struct Proghdr *ph)
+loaduvm(pde_t *pgdir, char *addr, struct Proghdr *ph, char *binary)
 {
 	pte_t *pte;
-	if ((pte = pgdir_walk(pgdir, addr, 1)) == 0)
+	void *dst;
+	void *src = ph->p_offset + (void *)binary;
+	uint32_t sz = ph->p_filesz;
+	if ((pte = pgdir_walk(pgdir, addr, 0)) == 0)
 		return -1;
-	void *dst = P2V(PTE_ADDR(*pte));
-	memmove(dst, P2V(ph->p_pa), ph->p_memsz);
-	if (ph->p_memsz > ph->p_filesz)
-		memset(dst + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
+	dst = P2V(PTE_ADDR(*pte));
+	
+	uint32_t offset = (uint32_t)addr & 0xFFF;
+	dst += offset;
+	uint32_t n = PGSIZE - offset;
+	memmove(dst, src, n);
+	src += n;
+	for (uint32_t i = n; i < sz; i += PGSIZE) {
+		if ((pte = pgdir_walk(pgdir, addr + i, 0)) == 0)
+			return -1;
+		dst = P2V(PTE_ADDR(*pte));
+		if (sz - i < PGSIZE)
+			n = sz - i;
+		else 
+			n = PGSIZE;
+		memmove(dst, src, n);
+		src += n;
+	}
 	return 0;
 }
 
@@ -241,13 +258,14 @@ region_alloc(struct proc *p, void *va, size_t len)
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
 	char *begin = ROUNDDOWN(va, PGSIZE);
-	char *end = ROUNDUP(va + len, PGSIZE);
-	while (begin < end) {
+	uint32_t size = ROUNDUP(len, PGSIZE);
+	while (size) {
 		char *page = kalloc();
-		//memset(page, 0, PGSIZE);
+		memset(page, 0, PGSIZE);
 		if (map_region(p->pgdir, begin, PGSIZE, V2P(page), PTE_W | PTE_U) < 0)
 			panic("Map space for user process.");
 		begin += PGSIZE;
+		size -= PGSIZE;
 	}
 }
 
@@ -261,6 +279,7 @@ pushcli(void)
 	if (thiscpu->ncli == 0)
 		thiscpu->intena = eflags & FL_IF;
 	thiscpu->ncli += 1;
+	// cprintf("%x in push ncli: %d\n", thiscpu, thiscpu->ncli);
 }
 
 void
@@ -268,7 +287,7 @@ popcli(void)
 {
 	if (read_eflags() & FL_IF)
 		panic("popcli - interruptible");
-	
+	// cprintf("%x in pop ncli: %d\n", thiscpu, thiscpu->ncli);
 	if (--thiscpu->ncli < 0)
 		panic("popcli");
 	
@@ -292,7 +311,7 @@ uvm_switch(struct proc *p)
 	thiscpu->gdt[SEG_TSS] = SEG16(STS_T32A, &thiscpu->cpu_ts, sizeof(thiscpu->cpu_ts) - 1, 0);
 	thiscpu->gdt[SEG_TSS].s = 0;
 	thiscpu->cpu_ts.ss0 = SEG_KDATA << 3;
-	thiscpu->cpu_ts.esp0 = (uintptr_t)thiscpu->proc->kstack + KSTACKSIZE;
+	thiscpu->cpu_ts.esp0 = (uintptr_t)p->kstack + KSTACKSIZE;
 	thiscpu->cpu_ts.iomb = (uint16_t)0xFFFF;
 	ltr(SEG_TSS << 3);
 	lcr3(V2P(p->pgdir));

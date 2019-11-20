@@ -43,24 +43,27 @@ trap(struct trapframe *tf)
 	struct proc *p = thisproc();
 	if (tf->trapno == T_SYSCALL) {
 		p->tf = tf;
-		syscall(tf->eax, tf->edx, tf->ecx, tf->ebx, tf->edi, tf->esi);
+		// cprintf("in trap.\n");
+		tf->eax = syscall(tf->eax, tf->edx, tf->ecx, tf->ebx, tf->edi, tf->esi);
+		return;
 	}
 	switch (tf->trapno) {
 	case T_IRQ0 + IRQ_TIMER:
-		cprintf("in timer.\n");
+		// cprintf("in timer.\n");
 		//lapic_eoi();
 		break;
 	
 	default:
-		if (p == NULL || (tf->cs & 3) == 0) {
-			cprintf("unexpected trap %d from cpu %d eip: %x (cr2=0x%x)\n",
-              tf->trapno, cpunum(), tf->eip, rcr2());
-      		panic("trap");
-		}
-		cprintf("pid %d : trap %d err %d on cpu %d "
-            "eip 0x%x addr 0x%x--kill proc\n",
-            p->pid, tf->trapno,
-            tf->err, cpunum(), tf->eip, rcr2());
+		// if (p == NULL || (tf->cs & 3) == 0) {
+		// 	cprintf("unexpected trap %d from cpu %d eip: %x (cr2=0x%x)\n",
+        //       tf->trapno, cpunum(), tf->eip, rcr2());
+      	// 	panic("trap");
+		// }
+		// cprintf("pid %d : trap %d err %d on cpu %d "
+        //     "eip 0x%x addr 0x%x--kill proc\n",
+        //     p->pid, tf->trapno,
+        //     tf->err, cpunum(), tf->eip, rcr2());
+		break;
 	}
 	//if (p && p->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER)
 	//	yield();

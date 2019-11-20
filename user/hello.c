@@ -4,5 +4,5 @@
 void
 umain(int argc, char **argv)
 {
-	cprintf("hello, world in user mode\n");
+	cprintf("Hello, world.\n");
 }

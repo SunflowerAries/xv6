@@ -48,7 +48,7 @@ void exit(void);
 
 #define UCODE_LOAD(p, x)						\
 	do {								\
-		extern char UCODE_PASTE3(_binary_obj_, x, _start)[];	\
+		extern uint8_t UCODE_PASTE3(_binary_obj_, x, _start)[];	\
 		ucode_load(p, (uint8_t *)UCODE_PASTE3(_binary_obj_, x, _start));		\
 	} while (0)
 

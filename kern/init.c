@@ -36,10 +36,9 @@ i386_init()
 	boot_aps();
 
 	alloc_init();
-
+	idt_init();
 	cprintf("VM: Init success.\n");
 	check_free_list();
-	cprintf("Finish.\n");
 	user_init();
 	ucode_run();
 	// Spin.

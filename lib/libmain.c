@@ -19,7 +19,7 @@ libmain(int argc, char **argv)
 	// save the name of the program so that panic() can use it
 	if (argc > 0)
 		binaryname = argv[0];
-
+	// cprintf("argc: %d\n", argc);
 	// call user main routine
 	umain(argc, argv);
 

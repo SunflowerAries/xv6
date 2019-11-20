@@ -19,7 +19,6 @@ uint32_t nextpid = 1;
 extern pde_t *kpgdir;
 extern void forkret(void);
 extern void trapret(void);
-extern char *_binary_obj_user_hello_start, *_binary_obj_user_hello_end, *_binary_obj_user_hello_size;
 void swtch(struct context **, struct context*);
 
 
@@ -127,34 +126,22 @@ ucode_load(struct proc *p, uint8_t *binary) {
 	//  What? 
 
 	// TODO: Your code here.
-	cprintf("Enter alloc.\n");
 	struct Proghdr *ph, *eph;
-	cprintf("Before assigning elf.\n");
 	struct Elf *elf = (struct Elf *)binary;
-	cprintf("%x", elf);
-	cprintf("Before assigning begin.\n");
-	cprintf("%x\n", elf->e_entry);
-	char *begin = (char *)elf->e_entry;
-	cprintf("After assigning begin.\n");
-	p->tf->eip = (uintptr_t)begin;
-	cprintf("Before alloc.\n");
-	region_alloc(p, begin, (int)_binary_obj_user_hello_size);
-	cprintf("After alloc.\n");
 	ph = (struct Proghdr *) (binary + elf->e_phoff);
 	eph = ph + elf->e_phnum;
-	for (; ph < eph; ph++)
-		if (ph->p_type == ELF_PROG_LOAD) {
-			if (loaduvm(p->pgdir, begin, ph) < 0)
-				panic("Load segment.");
-			begin += ph->p_memsz;
+	for (; ph < eph; ph++) {
+			void *begin = (void *)ph->p_va;
+			if (ph->p_type == ELF_PROG_LOAD) {
+				region_alloc(p, begin, ph->p_memsz);
+				if (loaduvm(p->pgdir, begin, ph, (char *)binary) < 0)
+					panic("Load segment.");
+			}
 		}
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 	// TODO: Your code here.
-	char *stack = kalloc();
-	p->tf->esp = USTACKTOP;
-	if (map_region(p->pgdir, (void *)(USTACKTOP - PGSIZE), PGSIZE, V2P(stack), PTE_U | PTE_W) < 0)
-		panic("USER STACK.");
+	region_alloc(p, (void *)(USTACKTOP - PGSIZE), PGSIZE * 2);
 }
 
 //
@@ -171,30 +158,24 @@ user_init(void)
 	struct proc *child;
 	if ((child = proc_alloc()) == NULL)
 		panic("Allocate User Process.");
-	cprintf("Finish allocate proc.\n");
 	if ((child->pgdir = kvm_init()) == NULL)
 		panic("User Pagedir.");
-	cprintf("Finish allocate pgdir %x.\n", child->pgdir);
 	// TODO: can't understand the reason for parent id.
-	//cprintf("Before pid.\n");
-	//struct proc *parent = child->parent;
-	//parent->pid = 0;
-	//cprintf("After pid.\n");
-	cprintf("%s", child->parent);
-	cprintf("Before Load.\n");
-	cprintf("start: %x, size: %x\n", _binary_obj_user_hello_start, _binary_obj_user_hello_size);
-	ucode_load(child, (uint8_t *)_binary_obj_user_hello_start);
-	cprintf("Finish Load.\n");
+	UCODE_LOAD(child, user_hello);	
 	memset(child->tf, 0, sizeof(*child->tf));
+	extern uint8_t _binary_obj_user_hello_start[];
 	child->tf->cs = (SEG_UCODE << 3) | DPL_USER;
 	child->tf->ds = (SEG_UDATA << 3) | DPL_USER;
 	child->tf->es = (SEG_UDATA << 3) | DPL_USER;
 	child->tf->ss = (SEG_UDATA << 3) | DPL_USER;
 	child->tf->eflags = FL_IF;
+	struct Elf *elf = (struct Elf *)_binary_obj_user_hello_start;
+	char *begin = (char *)elf->e_entry;
+	child->tf->eip = (uintptr_t)begin;
+	child->tf->esp = USTACKTOP;
 	spin_lock(&ptable.lock);
 	child->state = RUNNABLE;
 	spin_unlock(&ptable.lock);
-	cprintf("Finish all the environment for usr.\n");
 }
 
 //
@@ -213,11 +194,15 @@ ucode_run(void)
 	// TODO: where is the scheduler, thisproc may be wrong
 	struct proc *p;
 	thiscpu->proc = NULL;
-	while (1) {
+	// cprintf("After null.\n");
+	for (;;) {
 		sti();
 		spin_lock(&ptable.lock);
-		for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+		// cprintf("in while.\n");
+		for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+			// cprintf("proc: %x\n", p);
 			if (p->state == RUNNABLE) {
+				// cprintf("in scheduler.\n");
 				uvm_switch(p);
 				p->state = RUNNING;
 				thiscpu->proc = p;
@@ -225,6 +210,7 @@ ucode_run(void)
 				kvm_switch();
 				thiscpu->proc = NULL;
 			}
+		}
 		spin_unlock(&ptable.lock);
 	}
 }
