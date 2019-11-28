@@ -235,6 +235,15 @@ sched(void)
 	swtch(&p->context, thiscpu->scheduler);
 }
 
+void
+yield(void)
+{
+	struct proc *p = thisproc();
+	spin_lock(&ptable.lock);
+	p->state = RUNNABLE;
+	sched();
+	spin_unlock(&ptable.lock);
+}
 
 void
 forkret(void)
@@ -245,6 +254,25 @@ forkret(void)
 	// TODO: your code here.
 	spin_unlock(&ptable.lock);
 
+}
+
+int
+fork(void)
+{
+	struct proc *p = thisproc();
+	struct proc *child;
+	if ((child = proc_alloc()) == NULL)
+		return -1;
+	if ((child->pgdir = copyuvm(p->pgdir)) == NULL)
+		return -1;
+	child->parent = p;
+	*child->tf = *p->tf;
+	// TODO: can't understand the reason for parent id.
+	child->tf->eax = 0;
+	spin_lock(&ptable.lock);
+	child->state = RUNNABLE;
+	spin_unlock(&ptable.lock);
+	return child->pid;
 }
 
 void

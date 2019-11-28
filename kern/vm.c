@@ -240,6 +240,37 @@ vm_free(pde_t *pgdir)
 	kfree((char *)pgdir);
 }
 
+// Copy parent process's page table to its children
+pde_t *
+copyuvm(pde_t *pgdir)
+{
+	pde_t *child_pgdir;
+	pte_t *pte;
+	uint32_t pa, flags;
+	char *page;
+	if ((child_pgdir = kvm_init()) == 0)
+		return NULL;
+	for (uint32_t i = 0; i < USTACKTOP; i += PGSIZE) {
+		if ((pte = pgdir_walk(pgdir, (void *)i, 0)) == NULL)
+			continue;
+		if (*pte & PTE_P) {
+			pa = PTE_ADDR(*pte);
+			flags = PTE_FLAGS(*pte);
+			if ((page = kalloc()) == NULL) {
+				vm_free(child_pgdir);
+				return NULL;
+			}
+			memmove(page, P2V(pa), PGSIZE);
+			if (map_region(child_pgdir, (void *)i, PGSIZE, V2P(page), flags) < 0) {
+				kfree(page);
+				vm_free(child_pgdir);
+				return NULL;
+			}
+		}
+	}
+	return child_pgdir;
+}
+
 //
 // Allocate len bytes of physical memory for proc,
 // and map it at virtual address va in the proc's address space.

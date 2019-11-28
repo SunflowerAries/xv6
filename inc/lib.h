@@ -30,6 +30,7 @@ extern const char *binaryname;
 
 // exit.c
 void	exit(void);
+int     fork(void);
 
 // readline.c
 char*	readline(const char *buf);
@@ -38,6 +39,8 @@ char*	readline(const char *buf);
 void	sys_cputs(const char *string, size_t len);
 int		sys_cgetc(void);
 void 	sys_exit(void);
+void    sys_yield(void);
+int     sys_fork(void);
 // envid_t	sys_getenvid(void);
 // int	sys_env_destroy(envid_t);
 

@@ -16,6 +16,7 @@ void region_alloc(struct proc *p, void *va, size_t len);
 void uvm_switch(struct proc *p);
 int loaduvm(pde_t *pgdir, char *addr, struct Proghdr *ph, char *binary);
 pte_t *pgdir_walk(pde_t *pgdir, const void *va, int32_t alloc);
+pde_t *copyuvm(pde_t *pgdir);
 
 void pushcli(void);
 void popcli(void);

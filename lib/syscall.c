@@ -55,3 +55,15 @@ sys_exit(void)
 {
 	syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
 }
+
+int
+sys_fork(void)
+{
+	return syscall(SYS_fork, 0, 0, 0, 0, 0, 0); // TODO check the number of arguments
+}
+
+void
+sys_yield(void)
+{
+	syscall(SYS_yield, 0, 0, 0, 0, 0, 0);
+}

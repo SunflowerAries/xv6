@@ -50,7 +50,7 @@ trap(struct trapframe *tf)
 	switch (tf->trapno) {
 	case T_IRQ0 + IRQ_TIMER:
 		// cprintf("in timer.\n");
-		//lapic_eoi();
+		lapic_eoi();
 		break;
 	
 	default:
@@ -65,6 +65,6 @@ trap(struct trapframe *tf)
         //     tf->err, cpunum(), tf->eip, rcr2());
 		break;
 	}
-	//if (p && p->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER)
-	//	yield();
+	if (p && p->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER)
+		yield();
 }

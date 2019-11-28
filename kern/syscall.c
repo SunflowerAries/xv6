@@ -10,11 +10,13 @@
 #include <kern/proc.h>
 #include <kern/vm.h>
 
-/*static int (*syscalls[])(void) = {
-[SYS_cputs] sys_cputs,
-[SYS_cgetc] sys_cgetc,
-[SYS_exit] sys_exit,
-};*/
+// static int (*syscalls[])(void) = {
+// [SYS_cputs] sys_cputs,
+// [SYS_cgetc] sys_cgetc,
+// [SYS_exit] sys_exit,
+// [SYS_yield] sys_yield,
+// [SYS_fork] sys_fork,
+// };
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -55,6 +57,30 @@ sys_exit(void)
 	exit();
 }
 
+static void
+sys_yield(void)
+{
+	yield();
+}
+
+static int
+sys_fork(void)
+{
+	return fork();
+}
+
+static void
+sys_ipc_send()
+{
+	
+}
+
+static void
+sys_ipc_recv()
+{
+
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -72,7 +98,17 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		case SYS_exit:
 			sys_exit();
 			return 0;
-
+		case SYS_fork:
+			return sys_fork();
+		case SYS_yield:
+			sys_yield();
+			return 0;
+		case SYS_ipc_recv:
+			sys_ipc_recv();
+			return 0;
+		case SYS_ipc_send:
+			sys_ipc_send();
+			return 0;
 		default:
 			return 0;
 	}

@@ -41,6 +41,8 @@ struct proc* thisproc(void);
 void proc_init(void);
 
 void exit(void);
+void yield(void);
+int fork(void);
 
 // Without this extra macro, we couldn't pass macros like TEST to
 // UCODE_LOAD because of the C pre-processor's argument prescan rule.
