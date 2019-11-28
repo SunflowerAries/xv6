@@ -1,1 +1,0 @@
-   -O1 -fno-builtin -I. -MD -fno-omit-frame-pointer -std=gnu99 -static -fno-pic -fno-pie -Wall -Wno-format -Wno-unused -Werror -gstabs -m32 -fno-tree-ch -fno-stack-protector -fno-pie -no-pie -DJOS_KERNEL -gstabs
