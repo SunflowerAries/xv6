@@ -19,8 +19,9 @@ uint32_t nextpid = 1;
 extern pde_t *kpgdir;
 extern void forkret(void);
 extern void trapret(void);
+extern uint32_t ticks;
 void swtch(struct context **, struct context*);
-
+uint32_t time_slice[MAXPRIO + 1] = {16, 8, 4, 2, 1};
 
 //
 // Initialize something about process, such as ptable.lock
@@ -32,10 +33,130 @@ proc_init(void)
 	__spin_initlock(&ptable.lock, "ptable");
 }
 
+#ifdef DEBUG_MLFQ
+static void
+proc_list_init(void)
+{
+	int i = 0;
+	for (i = UNUSED; i <= ZOMBIE; i++) {
+		ptable.list[i].head = NULL;
+		ptable.list[i].tail = NULL;
+	}
+	for (i = 0; i <= MAXPRIO; i++) {
+		ptable.ready[i].head = NULL;
+		ptable.ready[i].tail = NULL;
+	}
+}
+
+static void
+free_list_init(void)
+{
+	struct proc *p;
+	for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+		p->state = UNUSED;
+		stateListAdd(&ptable.list[UNUSED], p);
+	}
+}
+
+static void
+stateListAdd(struct ptrs* list, struct proc *p)
+{
+	if (list->head == NULL) {
+		list->head = p;
+		list->tail = p;
+	} else {
+		list->tail->next = p;
+		list->tail = p;
+	}
+	p->next = NULL;
+}
+
+static int
+stateListRemove(struct ptrs* list, struct proc *p)
+{
+	if (list->head == NULL || p == NULL)
+		return -1;
+	struct proc *ptr = list->head;
+	struct proc *next;
+	if (ptr == p) {
+		if (ptr == list->tail)
+			list->tail = list->tail->next;
+		list->head = ptr->next;
+		return 0;
+	} 
+
+	next = ptr->next;
+	for (; ptr != list->tail; ptr = next, next = next->next)
+		if (next == p) {
+			ptr->next = next->next;
+			next->next = NULL;
+			return 0;
+		}
+	return -1;
+}
+
+static void
+assertState(struct proc *p, enum procstate state)
+{
+	if (p->state != state)
+		panic("process state not same as asserted state.");
+}
+#endif
+
 // Look in the process table for an UNUSED proc.
 // If found, change state to EMBRYO and initialize
 // state required to run in the kernel.
 // Otherwise return 0
+#ifdef DEBUG_MLFQ
+static struct proc*
+proc_alloc(void)
+{
+	// TODO: your code here
+	//
+	// Following things you need to do:
+	// - set state and pid.
+	// - allocate kernel stack.
+	// - leave room for trap frame in kernel stack.
+	// - Set up new context to start executing at forkret, which returns to trapret.
+	struct proc* p;
+	char* begin;
+	
+	p = ptable.list[UNUSED].head;
+	if (p == NULL)
+		return NULL;
+	spin_lock(&ptable.lock);
+	if (stateListRemove(&ptable.list[UNUSED], p) < 0)
+		panic("In UNUSED: Empty or process not in list");
+	assertState(p, UNUSED);
+	p->state = EMBRYO;
+	p->pid = nextpid++;
+	stateListAdd(&ptable.list[EMBRYO], p);
+	spin_unlock(&ptable.lock);
+
+	if ((p->kstack = kalloc()) == NULL) {
+		spinlock(&ptable.lock);
+		if (stateListRemove(&ptable.list[EMBRYO], p) < 0)
+			panic("In EMBRYO: Empty or process not in list");
+		assertState(p, EMBRYO);
+		p->state = UNUSED;
+		stateListAdd(&ptable.list[UNUSED], p);
+		spin_unlock(&ptable.lock);
+		return NULL;
+	}
+	begin = p->kstack + KSTACKSIZE; // Does the setup of trapframe happen before these?
+	begin -= sizeof(*p->tf);
+	p->tf = (struct trapframe *)begin;
+	begin -= 4;
+	*(uint32_t *)begin = (uint32_t)trapret;
+	begin -= sizeof(*p->context);
+	p->context = (struct context *)begin;
+	memset(p->context, 0, sizeof(*p->context));
+	p->context->eip = (uint32_t)forkret;
+	p->priority = MAXPRIO;
+	p->budget = time_slice[p->priority];
+	return p;
+}
+#else
 static struct proc*
 proc_alloc(void)
 {
@@ -72,6 +193,7 @@ proc_alloc(void)
 	spin_unlock(&ptable.lock);
 	return NULL;
 }
+#endif
 
 //
 // Set up the initial program binary, stack, and processor flags
@@ -156,6 +278,13 @@ user_init(void)
 {
 	// TODO: your code here.
 	struct proc *child;
+#ifdef DEBUG_MLFQ
+	spin_lock(&ptable.lock);
+	proc_list_init();
+	free_list_init();
+	spin_unlock(&ptable.lock);
+#endif
+
 	if ((child = proc_alloc()) == NULL)
 		panic("Allocate User Process.");
 	if ((child->pgdir = kvm_init()) == NULL)
@@ -173,9 +302,21 @@ user_init(void)
 	char *begin = (char *)elf->e_entry;
 	child->tf->eip = (uintptr_t)begin;
 	child->tf->esp = USTACKTOP;
+
+#ifdef DEBUG_MLFQ
 	spin_lock(&ptable.lock);
+	if (stateListRemove(&ptable.list[EMBRYO], child) < 0)
+		panic("In EMBRYO: Empty or process not in list");
+	assertState(child, EMBRYO);
+#endif
 	child->state = RUNNABLE;
+#ifdef DEBUG_MLFQ
+	stateListAdd(&ptable.ready[child->priority], child);
 	spin_unlock(&ptable.lock);
+#endif
+	// stateListAdd(&ptable.list[child->state], child);
+	
+	
 }
 
 //
@@ -183,6 +324,48 @@ user_init(void)
 //
 // This function does not return.
 //
+#ifdef DEBUG_MLFQ
+void
+ucode_run(void)
+{
+	// TODO: your code here
+	//
+	// Hints:
+	// - you may need sti() and cli()
+	// - you may need uvm_switch(), swtch() and kvm_switch()
+	// TODO: where is the scheduler, thisproc may be wrong
+	struct proc *p;
+	thiscpu->proc = NULL;
+	uint32_t priority;
+	// cprintf("After null.\n");
+	for (;;) {
+		sti();
+		spin_lock(&ptable.lock);
+		// cprintf("in while.\n");
+		if (ticks >= ptable.PromoteAtTime) {
+
+		}
+		for (priority = MAXPRIO; priority >= 0; priority--) {
+			p = ptable.ready[priority].head;
+			if (p) {
+				uvm_switch(p);
+				if (stateListRemove(&ptable.ready[priority], p) < 0)
+					panic("In Priority Queue: Empty or process is not in list");
+				assertState(p, RUNNABLE);
+				p->state = RUNNING;
+				stateListAdd(&ptable.list[p->state], p);
+				thiscpu->proc = p;
+				p->begin_tick = ticks;
+				swtch(&thiscpu->scheduler, p->context);
+				kvm_switch();
+				thiscpu->proc = NULL;
+				break;
+			}
+		}
+		spin_unlock(&ptable.lock);
+	}
+}
+#else
 void
 ucode_run(void)
 {
@@ -214,6 +397,7 @@ ucode_run(void)
 		spin_unlock(&ptable.lock);
 	}
 }
+#endif
 
 struct proc*
 thisproc(void) {
@@ -236,16 +420,6 @@ sched(void)
 }
 
 void
-yield(void)
-{
-	struct proc *p = thisproc();
-	spin_lock(&ptable.lock);
-	p->state = RUNNABLE;
-	sched();
-	spin_unlock(&ptable.lock);
-}
-
-void
 forkret(void)
 {
 	// Return to "caller", actually trapret (see proc_alloc)
@@ -256,6 +430,63 @@ forkret(void)
 
 }
 
+#ifdef DEBUG_MLFQ
+int
+fork(void)
+{
+	struct proc *p = thisproc();
+	struct proc *child;
+	if ((child = proc_alloc()) == NULL)
+		return -1;
+	if ((child->pgdir = copyuvm(p->pgdir)) == NULL)
+		return -1;
+	child->parent = p;
+	*child->tf = *p->tf;
+	// TODO: can't understand the reason for parent id.
+	child->tf->eax = 0;
+	spin_lock(&ptable.lock);
+	child->state = RUNNABLE;
+	spin_unlock(&ptable.lock);
+	return child->pid;
+}
+
+void
+exit(void)
+{
+	// sys_exit() call to here.
+	// TODO: your code here.
+	struct proc *p = thisproc();
+	spin_lock(&ptable.lock);
+	if (stateListRemove(&ptable.list[RUNNING], p) < 0)
+		panic("In RUNNING: Empty or process is not in list");
+	assertState(p, RUNNING);
+	p->state = ZOMBIE;
+	stateListAdd(&ptable.list[ZOMBIE], p);
+	sched();
+}
+
+// TODO: run enough time!!!
+void
+yield(void)
+{
+	struct proc *p = thisproc();
+	spin_lock(&ptable.lock);
+	p->budget -= (ticks - p->begin_tick);
+	if (p->budget <= 0) {
+		if (p->priority > 0)
+			p->priority--;
+		p->budget = time_slice[p->priority];
+
+	}
+	if (stateListRemove(&ptable.list[RUNNING], p) < 0)
+		panic("In RUNNING: Empty or process is not in list");
+	assertState(p, RUNNING);
+	p->state = RUNNABLE;
+	stateListAdd(&ptable.ready[--p->priority], p);
+	sched();
+	spin_unlock(&ptable.lock);
+}
+#else
 int
 fork(void)
 {
@@ -285,3 +516,14 @@ exit(void)
 	p->state = ZOMBIE;
 	sched();
 }
+
+void
+yield(void)
+{
+	struct proc *p = thisproc();
+	spin_lock(&ptable.lock);
+	p->state = RUNNABLE;
+	sched();
+	spin_unlock(&ptable.lock);
+}
+#endif

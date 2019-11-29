@@ -10,14 +10,6 @@
 #include <kern/proc.h>
 #include <kern/vm.h>
 
-// static int (*syscalls[])(void) = {
-// [SYS_cputs] sys_cputs,
-// [SYS_cgetc] sys_cgetc,
-// [SYS_exit] sys_exit,
-// [SYS_yield] sys_yield,
-// [SYS_fork] sys_fork,
-// };
-
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
 static void
