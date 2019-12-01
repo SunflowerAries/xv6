@@ -4,9 +4,11 @@
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 #define MAXPRIO 4
+#define STATECOUNT 6
 #define NPROC 64
 #define KSTACKSIZE 4096
-//#define DEBUG_MLFQ
+#define TICKS_TO_PROMOTE 1000
+#define DEBUG_MLFQ
 
 #include <inc/types.h>
 #include <inc/memlayout.h>
@@ -33,6 +35,7 @@ struct proc {
 	uint32_t priority;			// Process prority
 	uint32_t budget;			// Own time-slice
 	uint32_t begin_tick;		// Time to hold CPU
+	void *chan;					// Sleeping on chan
 #endif
 };
 
@@ -47,7 +50,7 @@ struct ptable {
 	struct spinlock lock;
 	struct proc proc[NPROC];
 #ifdef DEBUG_MLFQ
-	struct ptrs list[6];
+	struct ptrs list[STATECOUNT];
 	struct ptrs ready[MAXPRIO + 1];
 	uint32_t PromoteAtTime;
 #endif
@@ -60,10 +63,15 @@ void ucode_run(void);
 struct proc* thisproc(void);
 void proc_init(void);
 extern uint32_t time_slice[];
+extern uint32_t ticks;
 
 void exit(void);
 void yield(void);
 int fork(void);
+void sleep(void *chan, struct spinlock *lk);
+void wakeup1(void *chan);
+int wait(void);
+int kill(uint32_t pid);
 
 // Without this extra macro, we couldn't pass macros like TEST to
 // UCODE_LOAD because of the C pre-processor's argument prescan rule.

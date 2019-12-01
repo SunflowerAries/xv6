@@ -41,6 +41,7 @@ spin_lock(struct spinlock *lk)
 	struct mcslock_node *me = &thiscpu->node;
 	struct mcslock_node *tmp = me;
 	me->next = NULL;
+	pushcli();
 	struct mcslock_node *pre = Xchg(&lk->locked, tmp);
 	if (pre == NULL)
 		return;
@@ -63,6 +64,7 @@ spin_unlock(struct spinlock *lk)
 			continue;
 	}
 	me->next->waiting = 0;
+	popcli();
 }
 #else
 void

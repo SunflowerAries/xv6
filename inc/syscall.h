@@ -6,10 +6,12 @@ enum {
 	SYS_cputs = 0,
 	SYS_cgetc,
 	SYS_exit,
-	SYS_yield,
 	SYS_fork,
+	SYS_sleep,
+	SYS_wait,
+	SYS_kill,
 	SYS_ipc_recv,
-	SYS_ipc_send,
+	SYS_ipc_try_send,
 	NSYSCALLS
 };
 

@@ -19,7 +19,6 @@ uint32_t nextpid = 1;
 extern pde_t *kpgdir;
 extern void forkret(void);
 extern void trapret(void);
-extern uint32_t ticks;
 void swtch(struct context **, struct context*);
 uint32_t time_slice[MAXPRIO + 1] = {16, 8, 4, 2, 1};
 
@@ -49,17 +48,7 @@ proc_list_init(void)
 }
 
 static void
-free_list_init(void)
-{
-	struct proc *p;
-	for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-		p->state = UNUSED;
-		stateListAdd(&ptable.list[UNUSED], p);
-	}
-}
-
-static void
-stateListAdd(struct ptrs* list, struct proc *p)
+stateListAdd(struct ptrs* list, struct proc *p, const char *place)
 {
 	if (list->head == NULL) {
 		list->head = p;
@@ -69,11 +58,13 @@ stateListAdd(struct ptrs* list, struct proc *p)
 		list->tail = p;
 	}
 	p->next = NULL;
+	// cprintf("Add pid %d to %d at %s\n", p->pid, p->state, place);
 }
 
 static int
-stateListRemove(struct ptrs* list, struct proc *p)
+stateListRemove(struct ptrs* list, struct proc *p, const char *place)
 {
+	// cprintf("Remove pid %d from %d at %s\n", p->pid, p->state, place);
 	if (list->head == NULL || p == NULL)
 		return -1;
 	struct proc *ptr = list->head;
@@ -96,8 +87,19 @@ stateListRemove(struct ptrs* list, struct proc *p)
 }
 
 static void
-assertState(struct proc *p, enum procstate state)
+free_list_init(void)
 {
+	struct proc *p;
+	for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+		p->state = UNUSED;
+		stateListAdd(&ptable.list[UNUSED], p, "Free_list");
+	}
+}
+
+static void
+assertState(struct proc *p, enum procstate state, const char *place)
+{
+	// cprintf("pid:%d, pid-state:%d, state:%d at %s\n", p->pid, p->state, state, place); 
 	if (p->state != state)
 		panic("process state not same as asserted state.");
 }
@@ -125,21 +127,21 @@ proc_alloc(void)
 	if (p == NULL)
 		return NULL;
 	spin_lock(&ptable.lock);
-	if (stateListRemove(&ptable.list[UNUSED], p) < 0)
-		panic("In UNUSED: Empty or process not in list");
-	assertState(p, UNUSED);
-	p->state = EMBRYO;
 	p->pid = nextpid++;
-	stateListAdd(&ptable.list[EMBRYO], p);
+	if (stateListRemove(&ptable.list[UNUSED], p, "Proc") < 0)
+		panic("In UNUSED: Empty or process not in list");
+	assertState(p, UNUSED, "Proc");
+	p->state = EMBRYO;
+	stateListAdd(&ptable.list[EMBRYO], p, "Proc");
 	spin_unlock(&ptable.lock);
 
 	if ((p->kstack = kalloc()) == NULL) {
-		spinlock(&ptable.lock);
-		if (stateListRemove(&ptable.list[EMBRYO], p) < 0)
+		spin_lock(&ptable.lock);
+		if (stateListRemove(&ptable.list[EMBRYO], p, "Proc fail") < 0)
 			panic("In EMBRYO: Empty or process not in list");
-		assertState(p, EMBRYO);
+		assertState(p, EMBRYO, "Proc fail");
 		p->state = UNUSED;
-		stateListAdd(&ptable.list[UNUSED], p);
+		stateListAdd(&ptable.list[UNUSED], p, "Proc fail");
 		spin_unlock(&ptable.lock);
 		return NULL;
 	}
@@ -305,13 +307,14 @@ user_init(void)
 
 #ifdef DEBUG_MLFQ
 	spin_lock(&ptable.lock);
-	if (stateListRemove(&ptable.list[EMBRYO], child) < 0)
+	if (stateListRemove(&ptable.list[EMBRYO], child, "Userinit") < 0)
 		panic("In EMBRYO: Empty or process not in list");
-	assertState(child, EMBRYO);
+	assertState(child, EMBRYO, "Userinit");
 #endif
 	child->state = RUNNABLE;
 #ifdef DEBUG_MLFQ
-	stateListAdd(&ptable.ready[child->priority], child);
+	stateListAdd(&ptable.ready[child->priority], child, "Userinit");
+	ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
 	spin_unlock(&ptable.lock);
 #endif
 	// stateListAdd(&ptable.list[child->state], child);
@@ -334,26 +337,44 @@ ucode_run(void)
 	// - you may need sti() and cli()
 	// - you may need uvm_switch(), swtch() and kvm_switch()
 	// TODO: where is the scheduler, thisproc may be wrong
-	struct proc *p;
+	struct proc *p, *tmp;
 	thiscpu->proc = NULL;
-	uint32_t priority;
+	int priority;
 	// cprintf("After null.\n");
 	for (;;) {
 		sti();
 		spin_lock(&ptable.lock);
 		// cprintf("in while.\n");
 		if (ticks >= ptable.PromoteAtTime) {
-
+			for (int j = MAXPRIO - 1; j >= 0; j--) {
+				p = ptable.ready[j].head;
+				while(p) {
+					tmp = p->next;
+					if (stateListRemove(&ptable.ready[j], p, "Ucode_run") < 0)
+						panic("In Priority Queue: Empty or process is not in list");
+					assertState(p, RUNNABLE, "Ucode_run");
+					if (p->priority != j)
+						panic("Priority");
+					stateListAdd(&ptable.ready[j + 1], p, "Ucode_run");
+					p->budget = time_slice[++p->priority];
+					p = tmp;
+				}
+			}
+			ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
 		}
 		for (priority = MAXPRIO; priority >= 0; priority--) {
 			p = ptable.ready[priority].head;
+			// cprintf("At priority %d\n", priority);
 			if (p) {
 				uvm_switch(p);
-				if (stateListRemove(&ptable.ready[priority], p) < 0)
+				if (stateListRemove(&ptable.ready[priority], p, "Ucode_run") < 0)
 					panic("In Priority Queue: Empty or process is not in list");
-				assertState(p, RUNNABLE);
+				if (p->priority != priority) 
+					panic("Priority");
+				// cprintf("In ucode_run.\n");
+				assertState(p, RUNNABLE, "Ucode_run");
 				p->state = RUNNING;
-				stateListAdd(&ptable.list[p->state], p);
+				stateListAdd(&ptable.list[p->state], p, "Ucode_run");
 				thiscpu->proc = p;
 				p->begin_tick = ticks;
 				swtch(&thiscpu->scheduler, p->context);
@@ -430,6 +451,25 @@ forkret(void)
 
 }
 
+void
+wakeup1(void *chan)
+{
+	struct proc *p = ptable.list[SLEEPING].head;
+	struct proc *tmp;
+	while(p) {
+		tmp = p->next;
+		if (p->chan == chan) {
+			if (stateListRemove(&ptable.list[SLEEPING], p, "Wakeup") < 0)
+				panic("In SLEEPING: Empty or process not in list");
+			assertState(p, SLEEPING, "Wakeup");
+			cprintf("wakeup pid %d\n", p->pid);
+			p->state = RUNNABLE;
+			stateListAdd(&ptable.ready[p->priority], p, "Wakeup");
+		}	
+		p = tmp;
+	}
+}
+
 #ifdef DEBUG_MLFQ
 int
 fork(void)
@@ -438,14 +478,28 @@ fork(void)
 	struct proc *child;
 	if ((child = proc_alloc()) == NULL)
 		return -1;
-	if ((child->pgdir = copyuvm(p->pgdir)) == NULL)
+	if ((child->pgdir = copyuvm(p->pgdir)) == NULL) {
+		kfree(child->kstack);
+		child->kstack = NULL;
+		spin_lock(&ptable.lock);
+		if (stateListRemove(&ptable.list[EMBRYO], child, "fork fail") < 0)
+			panic("In EMBRYO: Empty or process not in list");
+		assertState(child, EMBRYO, "fork");
+		child->state = UNUSED;
+		stateListAdd(&ptable.list[child->state], child, "fork fail");
+		spin_unlock(&ptable.lock);
 		return -1;
+	}
 	child->parent = p;
 	*child->tf = *p->tf;
 	// TODO: can't understand the reason for parent id.
 	child->tf->eax = 0;
 	spin_lock(&ptable.lock);
+	if (stateListRemove(&ptable.list[EMBRYO], child, "fork") < 0)
+		panic("In EMBRYO: Empty or process not in list");
+	assertState(child, EMBRYO, "fork");
 	child->state = RUNNABLE;
+	stateListAdd(&ptable.ready[child->priority], child, "fork");
 	spin_unlock(&ptable.lock);
 	return child->pid;
 }
@@ -456,12 +510,17 @@ exit(void)
 	// sys_exit() call to here.
 	// TODO: your code here.
 	struct proc *p = thisproc();
+	cprintf("process %d exit.\n", p->pid);
 	spin_lock(&ptable.lock);
-	if (stateListRemove(&ptable.list[RUNNING], p) < 0)
+	if (p->parent) {
+		cprintf("parent:%d\n", p->parent->pid);
+		wakeup1(p->parent); // TODO: need root process
+	}
+	if (stateListRemove(&ptable.list[RUNNING], p, "exit") < 0)
 		panic("In RUNNING: Empty or process is not in list");
-	assertState(p, RUNNING);
+	assertState(p, RUNNING, "exit");
 	p->state = ZOMBIE;
-	stateListAdd(&ptable.list[ZOMBIE], p);
+	stateListAdd(&ptable.list[p->state], p, "exit");
 	sched();
 }
 
@@ -471,21 +530,89 @@ yield(void)
 {
 	struct proc *p = thisproc();
 	spin_lock(&ptable.lock);
-	p->budget -= (ticks - p->begin_tick);
-	if (p->budget <= 0) {
-		if (p->priority > 0)
-			p->priority--;
-		p->budget = time_slice[p->priority];
-
-	}
-	if (stateListRemove(&ptable.list[RUNNING], p) < 0)
+	if (stateListRemove(&ptable.list[RUNNING], p, "yield") < 0)
 		panic("In RUNNING: Empty or process is not in list");
-	assertState(p, RUNNING);
+	assertState(p, RUNNING, "yield");
 	p->state = RUNNABLE;
-	stateListAdd(&ptable.ready[--p->priority], p);
+	if (p->priority > 0) {
+		// cprintf("priority %d\n", p->priority);
+		p->priority--;
+		stateListAdd(&ptable.ready[p->priority], p, "yield");
+		// cprintf("priority %d\n", p->priority);
+	}
+	p->budget = time_slice[p->priority];
 	sched();
 	spin_unlock(&ptable.lock);
 }
+
+void
+sleep(void *chan, struct spinlock *lk)
+{
+	struct proc *p = thisproc();
+	if (p == NULL)
+		panic("sleep");
+	if (lk == NULL)
+		panic("sleep without tickslock");
+	if (lk != &ptable.lock) {
+		spin_lock(&ptable.lock);
+		spin_unlock(lk);
+	}
+	if (stateListRemove(&ptable.list[RUNNING], p, "Sleep") < 0)
+		panic("In Priority Queue: Empty or process is not in list");
+	assertState(p, RUNNING, "Sleep");
+	p->chan = chan;
+	p->state = SLEEPING;
+	stateListAdd(&ptable.list[p->state], p, "Sleep");
+	sched();
+	p->chan = NULL;
+	if (lk != &ptable.lock) {
+		spin_unlock(&ptable.lock);
+		spin_lock(lk);
+	}
+}
+
+int
+wait(void)
+{
+	struct proc *p = thisproc();
+	struct proc *q, *tmp;
+	uint32_t pid;
+	spin_lock(&ptable.lock);
+	for (;;) {
+		q = ptable.list[ZOMBIE].head;
+		while (q) {
+			tmp = q->next;
+			if (q->parent == p) {
+				if (stateListRemove(&ptable.list[ZOMBIE], q, "Wait") < 0)
+					panic("In ZOMBIE: Empty or process not in list");
+				assertState(q, ZOMBIE, "Wait");
+				q->state = UNUSED;
+				stateListAdd(&ptable.list[q->state], q, "Wait");
+				pid = q->pid;
+				vm_free(q->pgdir);
+				kfree(q->kstack);
+				q->kstack = NULL;
+				q->pgdir = NULL;
+				q->parent = NULL;
+				q->pid = 0;
+				spin_unlock(&ptable.lock);
+				return pid;
+			}
+			q = tmp;
+		}
+		cprintf("sleep %d\n", p->pid);
+		sleep(p, &ptable.lock);
+	}
+}
+
+int
+kill(uint32_t pid) // TODO
+{
+	struct proc *p;
+	spin_lock(&ptable.lock);
+	return 0;
+}
+
 #else
 int
 fork(void)

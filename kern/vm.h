@@ -9,6 +9,7 @@
 void vm_init(void);
 pde_t *kvm_init(void);
 void kvm_switch(void);
+void reclaim_uvm(pde_t *pgdir);
 void vm_free(pde_t *);
 
 void seg_init(void);

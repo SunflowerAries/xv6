@@ -3,6 +3,7 @@
 #include <inc/syscall.h>
 #include <inc/lib.h>
 #include <inc/traps.h>
+#include <kern/spinlock.h>
 
 static inline int32_t
 syscall(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -63,7 +64,19 @@ sys_fork(void)
 }
 
 void
-sys_yield(void)
+sys_sleep(uint32_t n)
 {
-	syscall(SYS_yield, 0, 0, 0, 0, 0, 0);
+	syscall(SYS_sleep, 0, n, 0, 0, 0, 0);
+}
+
+int
+sys_wait(void)
+{
+	return syscall(SYS_wait, 0, 0, 0, 0, 0, 0);
+}
+
+int
+sys_kill(uint32_t pid)
+{
+	return syscall(SYS_kill, 0, pid, 0, 0, 0, 0);
 }

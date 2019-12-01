@@ -224,6 +224,24 @@ vm_init(void)
 	kvm_switch();
 }
 
+void
+reclaim_uvm(pde_t *pgdir)
+{
+	uint32_t pa;
+	pte_t *pte;
+	char *page;
+	for (uint32_t i = 0; i < USTACKTOP; i += PGSIZE) {
+		if ((pte = pgdir_walk(pgdir, (void *)i, 0)) == NULL)
+			continue;
+		if (*pte & PTE_P) {
+			pa = PTE_ADDR(*pte);
+			if (pa == 0)
+				panic("reclaim");
+			kfree(P2V(pa));
+		}
+	}
+}
+
 // Free a page table.
 //
 // Hint: You need to free all existing PTEs for this pgdir.
@@ -231,12 +249,12 @@ void
 vm_free(pde_t *pgdir)
 {
 	// TODO: your code here
-	for (int i = 0; i < 1024; i++) {
+	reclaim_uvm(pgdir);
+	for (int i = 0; i < 1024; i++)
 	    if (pgdir[i] & PTE_P) {
 	        char *v = P2V((pgdir[i] >> 12) << 12);
 	        kfree(v);
 	    }
-	}
 	kfree((char *)pgdir);
 }
 

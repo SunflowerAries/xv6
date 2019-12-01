@@ -9,7 +9,7 @@
 #include <kern/console.h>
 #include <kern/proc.h>
 #include <kern/vm.h>
-
+extern struct spinlock tickslock;
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
 static void
@@ -49,12 +49,6 @@ sys_exit(void)
 	exit();
 }
 
-static void
-sys_yield(void)
-{
-	yield();
-}
-
 static int
 sys_fork(void)
 {
@@ -62,7 +56,31 @@ sys_fork(void)
 }
 
 static void
-sys_ipc_send()
+sys_sleep(uint32_t n)
+{
+	struct proc *p = thisproc();
+	spin_lock(&tickslock);
+	uint32_t ticks0 = ticks;
+	while(ticks - ticks0 < n) {
+		sleep(&ticks, &tickslock);
+	}
+	spin_unlock(&tickslock);
+}
+
+static int
+sys_wait()
+{
+	return wait();
+}
+
+static int
+sys_kill(uint32_t pid)
+{
+	return kill(pid);
+}
+
+static void
+sys_ipc_try_send()
 {
 	
 }
@@ -92,14 +110,18 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 			return 0;
 		case SYS_fork:
 			return sys_fork();
-		case SYS_yield:
-			sys_yield();
+		case SYS_sleep:
+			sys_sleep(a1);
 			return 0;
+		case SYS_wait:
+			return sys_wait();
+		case SYS_kill:
+			return sys_kill(a1);
 		case SYS_ipc_recv:
 			sys_ipc_recv();
 			return 0;
-		case SYS_ipc_send:
-			sys_ipc_send();
+		case SYS_ipc_try_send:
+			sys_ipc_try_send();
 			return 0;
 		default:
 			return 0;

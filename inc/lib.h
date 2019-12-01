@@ -16,6 +16,7 @@
 // #include <inc/env.h>
 #include <inc/memlayout.h>
 #include <inc/syscall.h>
+#include <kern/spinlock.h>
 
 #define USED(x)		(void)(x)
 
@@ -31,6 +32,9 @@ extern const char *binaryname;
 // exit.c
 void	exit(void);
 int     fork(void);
+void    sleep(uint32_t n);
+int     wait(void);
+int     kill(uint32_t pid);
 
 // readline.c
 char*	readline(const char *buf);
@@ -39,8 +43,11 @@ char*	readline(const char *buf);
 void	sys_cputs(const char *string, size_t len);
 int		sys_cgetc(void);
 void 	sys_exit(void);
-void    sys_yield(void);
 int     sys_fork(void);
+void    sys_sleep(uint32_t n);
+int     sys_wait(void);
+int     sys_kill(uint32_t pid);
+
 // envid_t	sys_getenvid(void);
 // int	sys_env_destroy(envid_t);
 
