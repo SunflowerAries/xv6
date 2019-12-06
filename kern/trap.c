@@ -73,8 +73,10 @@ trap(struct trapframe *tf)
 		break;
 	}
 	if (p && p->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER) {
+#ifdef UGLY_YIELD
 		if (ticks - p->begin_tick < time_slice[p->priority])
 			return;
+#endif
 		yield();
 	}
 }

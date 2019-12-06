@@ -9,6 +9,7 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 #define KSTACKSIZE 4096
 #define TICKS_TO_PROMOTE 1000
 #define DEBUG_MLFQ
+//#define UGLY_YIELD
 
 #include <inc/types.h>
 #include <inc/memlayout.h>
