@@ -20,6 +20,7 @@
         "stdio.h": "c",
         "picirq.h": "c",
         "ide.h": "c",
-        "ioapic.h": "c"
+        "ioapic.h": "c",
+        "sleeplock.h": "c"
     }
 }
