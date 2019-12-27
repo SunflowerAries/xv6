@@ -6,11 +6,11 @@
 
 `One week`
 
-In this lab, you will write the disk driver for your operating system which is now falling out of fashion, which interface is simple enough to get started quickly.
+In this lab, you will write the disk driver for your operating system which is now falling out of fashion, whose interface is simple enough to get started quickly.
 
 The main job you need to do in this lab is to implement a disk drivers with IDE device in PIO mode(these concepts will be detailed below).
 
-There are two challenge for you to choose if you like: write another driver you like, or write a disk scheduling instead of "First-Come, First-Served".
+There are two challenges for you to choose if you like: write another driver you like, or write a disk scheduling instead of "First-Come, First-Served".
 
 ### 6.1.1 Getting started
 
@@ -59,7 +59,7 @@ CHS (Cylinder Head Sector) is an older way of addressing a storage device.
 
 I/O ports are a serial of registers.
 
-Each I/O interface is design by one device controller, which is several specific register of I/O ports. There might be more than one I/O interface for a specific device controller.
+Each I/O interface is designed by one device controller, which is several specific register of I/O ports. There might be more than one I/O interface for a specific device controller.
 
 [IDE](https://wiki.osdev.org/PCI_IDE_Controller) and [ATA](https://wiki.osdev.org/Category:ATA) are ambiguous, but we can consider IDE as the device, ATA as the transmission protocol and technology.
 
@@ -79,13 +79,13 @@ In this lab, we will focus on the disk driver. The disk driver copies data from 
 
 In this lab, we need to implement a disk driver. The disk driver represent disk sectors with a data structure called a buffer,`struct buf` (buf.h). Each buffer represents the contents of one sector on a particular disk device. The dev and sector fields give the device and sector number and the data field is an in-memory copy of the disk sector.
 
-The flags track the relationship between memory and disk: the B_VALID flag means that data has been read in, and the B_DIRTY flag means that data needs to be written out. The B_BUSY flag is a lock bit; it indicates that some process is using the buffer and other processes must not. When a buffer has the B_BUSY flag set, we say the buffer is locked.
+The flags track the relationship between memory and disk: the B_VALID flag means that data has been read in, and the B_DIRTY flag means that data needs to be written out. The **B_BUSY** flag is a lock bit; it indicates that some process is using the buffer and other processes must not. When a buffer has the B_BUSY flag set, we say the buffer is locked.
 
 ### 6.3.2 Ideinit
 
 #### interrupt init
 
-The kernel initializes the disk driver at boot time by calling `ideinit` () from `main` (). `Ideinit` calls `picenable` and `ioapicenable` to enable the IDE_IRQ interrupt (). The call to `picenable` enables the interrupt on a uniprocessor; `ioapicenable` enables the interrupt on a multiprocessor, but only on the last CPU (`ncpu-1`): on a two-processor system, CPU 1 handles disk interrupts.
+The kernel initializes the disk driver at boot time by calling `ideinit` () from `main` (). `Ideinit` calls **`picenable` and `ioapicenable` to enable the IDE_IRQ interrupt ()**. The call to `picenable` enables the interrupt on a uniprocessor; `ioapicenable` enables the interrupt on a multiprocessor, but only on the last CPU (`ncpu-1`): on a two-processor system, CPU 1 handles disk interrupts.
 
 Next, `ideinit` probes the disk hardware. It should begin by calling `idewait` to wait for the disk to be able to accept commands. A PC motherboard presents the status bits of the disk hardware on I/O port 0x1f7. `Idewait` should polls the status bits until the busy bit `IDE_BSY` is clear and the ready bit `IDE_DRDY` is set.
 
@@ -123,5 +123,5 @@ Register the IRQ in `traps.c`
 
 Answer the questions in this guidebook.  
 
-> Q: in this lab and xv6, we implement the disk driver in the kernel, but in jos, it implement the disk driver as a user process(kernel only make very few adjustments to provide the necessary support). What are the advantages of each of them (there are no standard answers to this open question. **hint:** you can think from the direction of the microkernel)? What problems might you encounter when implementing a disk driver in the user process? What kind of special support does the kernel need to provide hard drive in the user part?
+> Q: in this lab and xv6, we implement the disk driver in the kernel, but in jos, it implements the disk driver as a user process(kernel only make very few adjustments to provide the necessary support). What are the advantages of each of them (there are no standard answers to this open question. **hint:** you can think from the direction of the microkernel)? What problems might you encounter when implementing a disk driver in the user process? What kind of special support does the kernel need to provide for hard drive in the user part?
 

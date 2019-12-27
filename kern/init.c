@@ -9,6 +9,8 @@
 #include <kern/trap.h>
 #include <kern/cpu.h>
 #include <kern/picirq.h>
+#include <kern/ide.h>
+#include <kern/ioapic.h>
 
 static void boot_aps(void);
 
@@ -34,6 +36,7 @@ i386_init()
 	lapic_init();
 	pic_init();
 	ioapic_init();
+	ide_init();
 	boot_aps();
 
 	alloc_init();

@@ -9,6 +9,7 @@
 #include <kern/syscall.h>
 #include <kern/proc.h>
 #include <kern/cpu.h>
+#include <kern/ide.h>
 
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
@@ -59,7 +60,10 @@ trap(struct trapframe *tf)
 		spin_unlock(&tickslock);
 		lapic_eoi();
 		break;
-	
+	case T_IRQ0 + IRQ_IDE:
+		ide_intr();
+		lapic_eoi();
+		break;
 	default:
 		if (p == NULL || (tf->cs & 3) == 0) {
 			cprintf("unexpected trap %d from cpu %d eip: %x (cr2=0x%x)\n",
@@ -72,11 +76,6 @@ trap(struct trapframe *tf)
             tf->err, cpunum(), tf->eip, rcr2());
 		break;
 	}
-	if (p && p->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER) {
-#ifdef UGLY_YIELD
-		if (ticks - p->begin_tick < time_slice[p->priority])
-			return;
-#endif
+	if (p && p->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER)
 		yield();
-	}
 }

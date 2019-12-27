@@ -5,6 +5,7 @@
 
 // Comment this to disable spinlock debugging
 #define DEBUG_SPINLOCK
+#define DEBUG_SLEEPLOCK
 #define DEBUG_MCSLOCK
 // Mutual exclusion lock.
 struct spinlock {
@@ -28,6 +29,8 @@ struct mcslock_node {
 	volatile uint32_t waiting;
 	struct mcslock_node *volatile next;
 };
+
+
 
 void __spin_initlock(struct spinlock *lk, char *name);
 void spin_lock(struct spinlock *lk);

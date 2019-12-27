@@ -9,7 +9,6 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 #define KSTACKSIZE 4096
 #define TICKS_TO_PROMOTE 1000
 #define DEBUG_MLFQ
-//#define UGLY_YIELD
 
 #include <inc/types.h>
 #include <inc/memlayout.h>
@@ -71,6 +70,7 @@ void yield(void);
 int fork(void);
 void sleep(void *chan, struct spinlock *lk);
 void wakeup1(void *chan);
+void wakeup(void *chan);
 int wait(void);
 int kill(uint32_t pid);
 

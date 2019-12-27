@@ -470,6 +470,14 @@ wakeup1(void *chan)
 	}
 }
 
+void
+wakeup(void *chan)
+{
+	spin_lock(&ptable.lock);
+	wakeup1(chan);
+	spin_unlock(&ptable.lock);
+}
+
 #ifdef DEBUG_MLFQ
 int
 fork(void)
@@ -525,11 +533,12 @@ exit(void)
 }
 
 // TODO: run enough time!!!
-#ifdef UGLY_YIELD
 void
 yield(void)
 {
 	struct proc *p = thisproc();
+	if (ticks - p->begin_tick < time_slice[p->priority])
+		return;
 	spin_lock(&ptable.lock);
 	if (stateListRemove(&ptable.list[RUNNING], p, "yield") < 0)
 		panic("In RUNNING: Empty or process is not in list");
@@ -545,27 +554,6 @@ yield(void)
 	sched();
 	spin_unlock(&ptable.lock);
 }
-#else
-void
-yield(void)
-{
-	struct proc *p = thisproc();
-	spin_lock(&ptable.lock);
-	if (stateListRemove(&ptable.list[RUNNING], p, "yield") < 0)
-		panic("In RUNNING: Empty or process is not in list");
-	assertState(p, RUNNING, "yield");
-	p->state = RUNNABLE;
-	if (p->priority > 0) {
-		// cprintf("priority %d\n", p->priority);
-		p->priority--;
-		stateListAdd(&ptable.ready[p->priority], p, "yield");
-		// cprintf("priority %d\n", p->priority);
-	}
-	p->budget = time_slice[p->priority];
-	sched();
-	spin_unlock(&ptable.lock);
-}
-#endif
 
 void
 sleep(void *chan, struct spinlock *lk)

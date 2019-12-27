@@ -16,6 +16,10 @@
         "proc.h": "c",
         "spinlock.h": "c",
         "syscall.h": "c",
-        "lib.h": "c"
+        "lib.h": "c",
+        "stdio.h": "c",
+        "picirq.h": "c",
+        "ide.h": "c",
+        "ioapic.h": "c"
     }
 }
