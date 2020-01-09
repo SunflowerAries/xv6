@@ -12,6 +12,12 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 #include <inc/types.h>
 #include <inc/memlayout.h>
+#include <inc/traps.h>
+#include <inc/mmu.h>
+#include <inc/elf.h>
+#include <inc/string.h>
+#include <inc/assert.h>
+#include <inc/x86.h>
 #include <kern/spinlock.h>
 
 struct context {

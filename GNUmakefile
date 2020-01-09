@@ -149,12 +149,20 @@ include lib/Makefrag
 include user/Makefrag
 
 QEMUOPTS = -m 224 -drive file=$(OBJDIR)/kern/kernel.img,index=0,media=disk,format=raw -serial mon:stdio -gdb tcp::$(GDBPORT)
+#QEMUOPTS = -m 224 -drive file=$(OBJDIR)/kern/fs.img,index=1,media=disk,format=raw -drive file=$(OBJDIR)/kern/kernel.img,index=0,media=disk,format=raw -serial mon:stdio -gdb tcp::$(GDBPORT)
 CPUS ?= 4
 
 QEMUOPTS += $(shell if $(QEMU) -nographic -help | grep -q '^-D '; then echo '-D qemu.log'; fi)
 IMAGES = $(OBJDIR)/kern/kernel.img
+#IMAGES = $(OBJDIR)/kern/fs.img $(OBJDIR)/kern/kernel.img
 QEMUOPTS += -smp $(CPUS)
 QEMUOPTS += $(QEMUEXTRA)
+
+mkfs: kern/mkfs.c kern/fs.h
+	gcc -Werror -Wall -o mkfs kern/mkfs.c
+
+$(OBJDIR)/kern/fs.img: mkfs
+	./mkfs fs.img
 
 .gdbinit: .gdbinit.tmpl
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@

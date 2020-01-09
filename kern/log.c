@@ -1,10 +1,13 @@
 #include <inc/types.h>
-
+#include <inc/assert.h>
+#include <inc/string.h>
+#include <kern/bio.h>
 #include <kern/log.h>
 #include <kern/block.h>
 #include <kern/spinlock.h>
 #include <kern/sleeplock.h>
 #include <kern/buf.h>
+#include <kern/proc.h>
 
 // Simple logging that allows concurrent FS system calls.
 //
@@ -48,7 +51,7 @@ struct log {
 struct log log;
 
 static void recover_from_log(void);
-static void commit();
+static void commit(void);
 
 /* Init struct log.
  * todo:
@@ -58,6 +61,16 @@ static void commit();
 void
 initlog(int dev)
 {
+  if (sizeof(struct logheader) > BSIZE) // TODO: Logheader has to resides on a single block
+    panic("Initlog: too big logheader");
+  
+  struct superblock sb;
+  readsb(dev, &sb);
+  __spin_initlock(&log.lock, "log");
+  log.start = sb.logstart;
+  log.size = sb.nlog;
+  log.dev = dev;
+  recover_from_log();
 }
 
 /* Copy committed blocks from log to their destination
@@ -66,6 +79,15 @@ initlog(int dev)
 static void
 install_trans(void)
 {
+  int tail;
+  for (tail = 0; tail < log.lh.n; tail++) {
+    struct buf *logbuf = bread(log.dev, log.start + tail + 1);
+    struct buf *dstbuf = bread(log.dev, log.lh.block[tail]);
+    memmove(dstbuf->data, logbuf->data, BSIZE);
+    bwrite(dstbuf);
+    brelse(dstbuf);
+    brelse(logbuf);
+  }
 }
 
 /* Read the log header from disk into the in-memory log header
@@ -73,6 +95,13 @@ install_trans(void)
 static void
 read_head(void)
 {
+  struct buf *buf = bread(log.dev, log.start);
+  struct logheader *lh = (struct logheader *) (buf->data);
+  int i;
+  log.lh.n = lh->n;
+  for (i = 0; i < log.lh.n; i++)
+    log.lh.block[i] = lh->block[i];
+  brelse(buf);
 }
 
 /* Write in-memory log header to disk.
@@ -101,6 +130,10 @@ write_head(void)
 static void
 recover_from_log(void)
 {
+  read_head();
+  install_trans();
+  log.lh.n = 0;
+  write_head();
 }
 
 /* called at the start of each FS system call.
@@ -112,6 +145,18 @@ recover_from_log(void)
 void
 begin_op(void)
 {
+  spin_lock(&log.lock);
+  while (1) {
+    if (log.committing)
+      sleep(&log, &log.lock);
+    else if (log.lh.n + (log.outstanding + 1) * MAXOPBLOCKS > LOGSIZE) // TODO: why log.lh.n + log.outstanding ?
+      sleep(&log, &log.lock);
+    else {
+      log.outstanding += 1;
+      spin_unlock(&log.lock);
+      break;
+    }
+  }
 }
 
 /* called at the end of each FS system call.
@@ -126,6 +171,26 @@ begin_op(void)
 void
 end_op(void)
 {
+  bool do_commit = false;
+
+  spin_lock(&log.lock);
+  log.outstanding -= 1;
+  if (log.committing)
+    panic("End_op: log_commiting");
+  if (log.outstanding == 0) {
+    do_commit = true;
+    log.committing = 1;
+  } else
+    wakeup(&log); // TODO: Wakeup process waiting for begin_op but when to add to logheader ?
+  spin_unlock(&log.lock);
+
+  if (do_commit) {
+    commit();
+    spin_lock(&log.lock);
+    log.committing = 0;
+    wakeup(&log);
+    spin_unlock(&log.lock);
+  }
 }
 
 /* Copy modified blocks from cache to log.
@@ -133,6 +198,15 @@ end_op(void)
 static void
 write_log(void)
 {
+  int tail;
+  for (tail = 0; tail < log.lh.n; tail++) {
+    struct buf *to = bread(log.dev, log.start + tail + 1); // TODO: log.start+tail = header block
+    struct buf *from = bread(log.dev, log.lh.block[tail]);
+    memmove(to->data, from->data, BSIZE);
+    bwrite(to);
+    brelse(to);
+    brelse(from);
+  }
 }
 
 /* Commit the transaction in four steps
@@ -143,8 +217,15 @@ write_log(void)
  * 4. set the count in header to zero -- Erase the transaction from the log
  */
 static void
-commit()
+commit(void)
 {
+  if (log.lh.n > 0) {
+    write_log();
+    write_head();
+    install_trans();
+    log.lh.n = 0;         // TODO: Others are all blocked due to committing == 1
+    write_head();         // TODO: Refresh the logheader.n
+  }
 }
 
 /* log_write acts as a proxy for bwrite.
@@ -166,5 +247,21 @@ commit()
 void
 log_write(struct buf *b)
 {
+  int i;
+  spin_lock(&log.lock);
+  
+  if (log.lh.n >= LOGSIZE || log.lh.n >= log.size)
+    panic("too big a transaction");
+  
+  for (i = 0; i < log.lh.n; i++)
+    if (log.lh.block[i] == b->blockno)
+      break;
+
+  if (i == log.lh.n) {
+    log.lh.block[i] = b->blockno;
+    log.lh.n++;
+  }
+  spin_unlock(&log.lock);
+  b->flags |= B_DIRTY;
 }
 

@@ -1,14 +1,5 @@
-#include <inc/types.h>
-#include <inc/memlayout.h>
-#include <inc/traps.h>
-#include <inc/mmu.h>
-#include <inc/elf.h>
-#include <inc/string.h>
-#include <inc/assert.h>
-#include <inc/x86.h>
-
-#include <kern/kalloc.h>
 #include <kern/proc.h>
+#include <kern/kalloc.h>
 #include <kern/vm.h>
 #include <kern/trap.h>
 #include <kern/cpu.h>
@@ -436,8 +427,11 @@ void
 sched(void)
 {
 	// TODO: your code here.
+	int intena;
 	struct proc *p = thisproc();
+	intena = thiscpu->intena;
 	swtch(&p->context, thiscpu->scheduler);
+	thiscpu->intena = intena;
 }
 
 void
@@ -448,7 +442,6 @@ forkret(void)
 	// When it returns from forkret, it need to return to trapret.
 	// TODO: your code here.
 	spin_unlock(&ptable.lock);
-
 }
 
 void

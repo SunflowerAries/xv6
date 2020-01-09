@@ -35,10 +35,10 @@ ideQueueAdd(struct ide_queue *queue, struct buf *b)
     if (queue->head == NULL)
         queue->tail = queue->head = b;
     else {
-        queue->tail->next = b;
+        queue->tail->Qnext = b;
         queue->tail = b;
     }
-    b->next = NULL;
+    b->Qnext = NULL;
 }
 
 static struct buf*
@@ -47,7 +47,7 @@ ideQueueRemove(struct ide_queue *queue)
     if (queue->tail == queue->head)
         queue->head = queue->tail = NULL;
     else
-        queue->head = queue->head->next;
+        queue->head = queue->head->Qnext;
     return queue->head;
 }
 

@@ -4,6 +4,7 @@
 #include <inc/types.h>
 #include <kern/sleeplock.h>
 
+#define ROOTDEV 0
 #define BSIZE 512
 
 struct buf {
@@ -11,8 +12,11 @@ struct buf {
   uint32_t dev;
   uint32_t blockno;
   struct sleeplock lock;
+  uint8_t refcnt;
   //TODO: a queue or other data structure to manage buf
   struct buf *next;
+  struct buf *prev;
+  struct buf *Qnext;
   uint8_t data[BSIZE];
 };
 

@@ -21,6 +21,11 @@
         "picirq.h": "c",
         "ide.h": "c",
         "ioapic.h": "c",
-        "sleeplock.h": "c"
+        "sleeplock.h": "c",
+        "block.h": "c",
+        "buf.h": "c",
+        "elf.h": "c",
+        "bio.h": "c",
+        "log.h": "c"
     }
 }
