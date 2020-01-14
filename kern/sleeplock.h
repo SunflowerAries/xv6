@@ -17,7 +17,7 @@ struct sleeping_queue {
 struct sleeplock {
 	uint32_t locked;
 	struct spinlock lk;
-	struct sleeping_queue *queue;
+	struct sleeping_queue queue;
 #ifdef DEBUG_SLEEPLOCK
 	// For debugging:
 	char *name;            // Name of lock.
@@ -29,4 +29,5 @@ void __sleep_initlock(struct sleeplock *lk, char *name);
 void sleep_lock(struct sleeplock *lk);
 bool holdingsleep(struct sleeplock *lk);
 void sleep_unlock(struct sleeplock *lk);
+int holding(struct spinlock *lock);
 #endif

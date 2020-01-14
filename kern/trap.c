@@ -51,13 +51,16 @@ trap(struct trapframe *tf)
 		tf->eax = syscall(tf->eax, tf->edx, tf->ecx, tf->ebx, tf->edi, tf->esi);
 		return;
 	}
+	// cprintf("%d\n", tf->trapno);
 	switch (tf->trapno) {
 	case T_IRQ0 + IRQ_TIMER:
 		// cprintf("in timer.\n");
-		spin_lock(&tickslock);
-		ticks++;
-		wakeup1(&ticks);
-		spin_unlock(&tickslock);
+		if (thiscpu - cpus == 0) {
+			spin_lock(&tickslock);
+			ticks++;
+			wakeup1(&ticks);
+			spin_unlock(&tickslock);
+		}
 		lapic_eoi();
 		break;
 	case T_IRQ0 + IRQ_IDE:

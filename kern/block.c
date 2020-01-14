@@ -16,8 +16,11 @@ readsb(int dev, struct superblock *sb)
     struct buf *bp;
     bp = bread(dev, 1);
     memmove(sb, bp->data, sizeof(*sb));
-    cprintf("%d", sb->size);
-    cprintf("%d", sb->nblocks);
+    cprintf("sb: size %d nblocks %d ninodes %d nlog %d logstart %d\
+ inodestart %d bmap start %d\n", sb->size, sb->nblocks,
+          sb->ninodes, sb->nlog, sb->logstart, sb->inodestart,
+          sb->bmapstart);
+    // cprintf("%d", sb->nblocks);
     brelse(bp);
 }
 

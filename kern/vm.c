@@ -339,7 +339,6 @@ popcli(void)
 	// cprintf("%x in pop ncli: %d\n", thiscpu, thiscpu->ncli);
 	if (--thiscpu->ncli < 0)
 		panic("popcli");
-	
 	if (thiscpu->ncli == 0 && thiscpu->intena)
 		sti();
 }

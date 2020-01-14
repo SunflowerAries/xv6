@@ -51,7 +51,6 @@ int nlog = LOGSIZE;
 int nmeta;    // Number of meta blocks (boot, sb, nlog, inode, bitmap)
 int nblocks;  // Number of data blocks
 
-int fsfd;
 struct superblock sb;
 char zeroes[BSIZE];
 uint32_t freeinode = 1;
@@ -84,9 +83,9 @@ int
 main(void)
 {
   int i, cc, fd;
-  char buf[BSIZE], buf_1[BSIZE];
+  char buf[BSIZE];
 
-  fsfd = open("superblock",O_RDWR|O_CREAT|O_TRUNC);
+  FILE *fsfd = fopen("superblock","wb");
   // 1 fs block = 1 disk sector
   nmeta = 2 + nlog + ninodeblocks + nbitmap;
   nblocks = FSSIZE - nmeta;
@@ -98,13 +97,19 @@ main(void)
   sb.logstart = xint(2);
   sb.inodestart = xint(2+nlog);
   sb.bmapstart = xint(2+nlog+ninodeblocks);
+  // printf("bmap: %u\n", sb.bmapstart);
 
   printf("nmeta %d (boot, super, log blocks %u inode blocks %u, bitmap blocks %u) blocks %d total %d\n",
          nmeta, nlog, ninodeblocks, nbitmap, nblocks, FSSIZE);
   
   memset(buf, 0, sizeof(buf));
+  // for (int i = 0; i < sizeof(buf); i++)
+  //   printf("%u\t", buf[i]);
+  // printf("\n");
   memmove(buf, &sb, sizeof(sb));
-  write(fsfd, buf, BSIZE);
-  close(fd);
+  // for (int i = 0; i < sizeof(buf); i++)
+  //   printf("%u\t", buf[i]);
+  fwrite(buf, sizeof(char), BSIZE, fsfd);
+  fclose(fsfd);
   exit(0);
 }

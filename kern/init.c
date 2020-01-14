@@ -12,7 +12,6 @@
 #include <kern/ide.h>
 #include <kern/ioapic.h>
 #include <kern/bio.h>
-#include <kern/log.h>
 
 static void boot_aps(void);
 
@@ -41,7 +40,6 @@ i386_init()
 	ide_init();
 	binit();
 	
-	initlog(ROOTDEV);
 	boot_aps();
 
 	alloc_init();

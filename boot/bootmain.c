@@ -20,8 +20,8 @@ bootmain(void)
 	struct Proghdr *ph, *eph;
 
 	// Read 1st page off disk
-	// readseg((uint32_t) ELFHDR, SECTSIZE*8, 0);//TODO
-	readseg((uint32_t) ELFHDR, SECTSIZE*8, 512);//TODO
+	readseg((uint32_t) ELFHDR, SECTSIZE*8, 0);//TODO
+	// readseg((uint32_t) ELFHDR, SECTSIZE*8, 512);//TODO
 
 	// Is this a valid ELF?
 	if (ELFHDR->e_magic != ELF_MAGIC)
@@ -85,7 +85,7 @@ readseg(uint32_t pa, uint32_t count, uint32_t offset)
 	pa &= ~(SECTSIZE - 1); 
 
 	// Translate from bytes to sectors, and kernel starts at sector 1
-	offset = (offset / SECTSIZE) + 1;
+	offset = (offset / SECTSIZE) + 1000;
 
 	// If this is too slow, we could read lots of sectors at a time.
 	// We'd write more to memory than asked, but it doesn't matter --

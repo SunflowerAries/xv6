@@ -38,7 +38,7 @@ sleep_lock(struct sleeplock *lk)
     spin_lock(&lk->lk);
     struct sleepnode p;
     p.pid = thisproc()->pid;
-    sleepingQueueAdd(lk->queue, &p);
+    sleepingQueueAdd(&lk->queue, &p);
     while (lk->locked)
         sleep(&p, &lk->lk);
     lk->locked = 1;
@@ -53,7 +53,7 @@ sleep_unlock(struct sleeplock *lk)
     lk->locked = 0;
     lk->pid = 0;
     struct sleepnode *p;
-    p = sleepingQueueRemove(lk->queue);
+    p = sleepingQueueRemove(&lk->queue);
     if (p != NULL)
         wakeup(p);
     spin_unlock(&lk->lk);

@@ -58,13 +58,24 @@ spin_unlock(struct spinlock *lk)
 	struct mcslock_node *me = &thiscpu->node;
 	struct mcslock_node *tmp = me;
 	if (me->next == NULL) {
-		if (Cmpxchg(&lk->locked, tmp, NULL) == me)
+		if (Cmpxchg(&lk->locked, tmp, NULL) == me) {
+			popcli();
 			return;
-		while (me->next == NULL)
-			continue;
+		}
+		while (me->next == NULL);
 	}
 	me->next->waiting = 0;
 	popcli();
+}
+
+int
+holding(struct spinlock *lock)
+{
+  int r;
+  pushcli();
+  r = lock->locked == &thiscpu->node;
+  popcli();
+  return r;
 }
 #else
 void

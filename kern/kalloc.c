@@ -12,6 +12,7 @@
 #include <kern/kalloc.h>
 #include <kern/console.h>
 #include <kern/spinlock.h>
+#include <kern/cpu.h>
 
 // First address after kernel loaded from ELF file defined by the
 // kernel linker script in kernel.ld.

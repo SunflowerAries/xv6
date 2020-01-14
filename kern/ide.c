@@ -24,7 +24,7 @@
 
 // You must hold ide_lock while manipulating queue.
 static struct spinlock ide_lock;
-static struct ide_queue *ide_queue;
+static struct ide_queue ide_queue;
 
 static int havedisk1;
 extern int ncpu;
@@ -44,6 +44,8 @@ ideQueueAdd(struct ide_queue *queue, struct buf *b)
 static struct buf*
 ideQueueRemove(struct ide_queue *queue)
 {
+    if (queue->head == NULL)
+        panic("Queue: Empty.");
     if (queue->tail == queue->head)
         queue->head = queue->tail = NULL;
     else
@@ -68,7 +70,7 @@ ide_wait(int checkerr)
 {
     uint8_t r;
     while (((r = inb(0x1f7)) & (IDE_DRDY | IDE_BSY)) != IDE_DRDY);
-    if (checkerr && (r & (IDE_ERR | IDE_DF)) != 0)
+    if (checkerr && ((r & (IDE_ERR | IDE_DF)) != 0))
         return -1;
     return 0;
 }
@@ -96,12 +98,12 @@ ide_init(void)
         panic("ide_wait in ide_init");
     outb(0x1f6, 0xe0 | (1 << 4));
     for (int i = 0; i < 1000; i++) {
-        if (inb(0x1f7) & IDE_DRDY) {
+        if (inb(0x1f7) != 0) {
             havedisk1 = 1;
             break;
         }
     }
-    outb(0x1f6, 0xe0);
+    outb(0x1f6, 0xe0 | (0 << 4));
 }
 
 /* Start the request for b. Caller must hold ide_lock.
@@ -131,7 +133,7 @@ ide_start(struct buf *b)
     outb(0x1f3, sector & 0xff);
     outb(0x1f4, (sector >> 8) & 0xff);
     outb(0x1f5, (sector >> 16) & 0xff);
-    outb(0x1f6, 0xe0 | (b->dev << 4) | ((sector >> 24) & 0xf));
+    outb(0x1f6, 0xe0 | ((b->dev&1)<<4) | ((sector>>24)&0x0f));
     if (b->flags & B_DIRTY) {
         outb(0x1f7, write_cmd);
         outsl(0x1f0, b->data, BSIZE / 4);
@@ -155,7 +157,7 @@ void
 ide_intr(void)
 {
     spin_lock(&ide_lock);
-    struct buf *b = ide_queue->head;
+    struct buf *b = ide_queue.head;
     if (b == NULL) {
         spin_unlock(&ide_lock);
         return;
@@ -165,7 +167,7 @@ ide_intr(void)
     b->flags |= B_VALID;
     b->flags &= ~B_DIRTY;
     wakeup(b);
-    if ((b = ideQueueRemove(ide_queue)))
+    if ((b = ideQueueRemove(&ide_queue)))
         ide_start(b);
     spin_unlock(&ide_lock);
 }
@@ -186,13 +188,15 @@ void
 iderw(struct buf *b)
 {
     // TODO
+    if(!holdingsleep(&b->lock))
+        panic("iderw: buf not locked");
     if ((b->flags & (B_DIRTY | B_VALID)) == B_VALID)
         panic("iderw: nothing to do");
     if (b->dev && !havedisk1)
         panic("iderw: ide disk 1 not avaible");
     spin_lock(&ide_lock);
-    ideQueueAdd(ide_queue, b);
-    if (b == ide_queue->head)
+    ideQueueAdd(&ide_queue, b);
+    if (b == ide_queue.head)
         ide_start(b);
     while ((b->flags & (B_VALID | B_DIRTY)) != B_VALID)
         sleep(b, &ide_lock);

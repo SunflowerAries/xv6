@@ -4,12 +4,11 @@
 #include <inc/types.h>
 #include <kern/sleeplock.h>
 
-#define ROOTDEV 0
 #define BSIZE 512
 
 struct buf {
   int32_t flags;
-  uint32_t dev;
+  int32_t dev;
   uint32_t blockno;
   struct sleeplock lock;
   uint8_t refcnt;

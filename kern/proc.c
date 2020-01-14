@@ -3,6 +3,7 @@
 #include <kern/vm.h>
 #include <kern/trap.h>
 #include <kern/cpu.h>
+#include <kern/log.h>
 
 struct ptable ptable;
 
@@ -11,7 +12,7 @@ extern pde_t *kpgdir;
 extern void forkret(void);
 extern void trapret(void);
 void swtch(struct context **, struct context*);
-uint32_t time_slice[MAXPRIO + 1] = {16, 8, 4, 2, 1};
+uint32_t time_slice[MAXPRIO + 1] = {32, 16, 8, 4, 2};
 
 //
 // Initialize something about process, such as ptable.lock
@@ -277,7 +278,6 @@ user_init(void)
 	free_list_init();
 	spin_unlock(&ptable.lock);
 #endif
-
 	if ((child = proc_alloc()) == NULL)
 		panic("Allocate User Process.");
 	if ((child->pgdir = kvm_init()) == NULL)
@@ -309,7 +309,6 @@ user_init(void)
 	spin_unlock(&ptable.lock);
 #endif
 	// stateListAdd(&ptable.list[child->state], child);
-	
 	
 }
 
@@ -429,6 +428,15 @@ sched(void)
 	// TODO: your code here.
 	int intena;
 	struct proc *p = thisproc();
+	if(!holding(&ptable.lock))
+		panic("sched ptable.lock");
+	int eflags = read_eflags();
+	if(thiscpu->ncli != 1)
+		panic("sched locks");
+	if(p->state == RUNNING)
+		panic("sched running");
+	if(read_eflags()&FL_IF)
+		panic("sched interruptible");
 	intena = thiscpu->intena;
 	swtch(&p->context, thiscpu->scheduler);
 	thiscpu->intena = intena;
@@ -441,7 +449,12 @@ forkret(void)
 	// That means the first proc starts here.
 	// When it returns from forkret, it need to return to trapret.
 	// TODO: your code here.
+	static int first = 1;
 	spin_unlock(&ptable.lock);
+	if (first) {
+		first = 0;
+		initlog(ROOTDEV);
+	}
 }
 
 void

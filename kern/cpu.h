@@ -8,6 +8,7 @@
 
 // Maximum number of CPUs
 #define NCPU  8
+#define ROOTDEV 0
 
 // Values of status in struct Cpu
 enum {
