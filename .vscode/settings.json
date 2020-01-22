@@ -26,6 +26,10 @@
         "buf.h": "c",
         "elf.h": "c",
         "bio.h": "c",
-        "log.h": "c"
+        "log.h": "c",
+        "cstdlib": "c",
+        "cmath": "c",
+        "*.tcc": "c",
+        "typeinfo": "c"
     }
 }

@@ -12,6 +12,7 @@
 #include <kern/ide.h>
 #include <kern/ioapic.h>
 #include <kern/bio.h>
+#include <kern/spinlock.h>
 
 static void boot_aps(void);
 
@@ -95,7 +96,7 @@ mp_main(void)
 	cprintf("Starting CPU%d.\n", cpunum());
 	idt_init();
 	xchg(&thiscpu->cpu_status, CPU_STARTED); // tell boot_aps() we're up
-	for (;;);
+	ucode_run();
 }
 
 /*
@@ -112,7 +113,6 @@ void
 _panic(const char *file, int line, const char *fmt,...)
 {
 	va_list ap;
-
 	if (panicstr)
 		goto dead;
 	panicstr = fmt;
@@ -125,7 +125,7 @@ _panic(const char *file, int line, const char *fmt,...)
 	vcprintf(fmt, ap);
 	cprintf("\n");
 	va_end(ap);
-
+	while(1);
 dead:
     while(1);
 }

@@ -2,6 +2,7 @@
 #include <inc/assert.h>
 #include <inc/string.h>
 #include <kern/bio.h>
+#include <kern/cpu.h>
 #include <kern/log.h>
 #include <kern/block.h>
 #include <kern/spinlock.h>
@@ -65,12 +66,16 @@ initlog(int dev)
     panic("Initlog: too big logheader");
   
   struct superblock sb;
+  // cprintf("readsb: %u\n", thiscpu->cpu_id);
   readsb(dev, &sb);
+  // cprintf("Finish readsb.\n");
   __spin_initlock(&log.lock, "log");
+  // cprintf("Finish init loglock.\n");
   log.start = sb.logstart;
   log.size = sb.nlog;
   log.dev = dev;
   recover_from_log();
+  // cprintf("Finish recover from log.\n");
 }
 
 /* Copy committed blocks from log to their destination
@@ -96,6 +101,7 @@ static void
 read_head(void)
 {
   struct buf *buf = bread(log.dev, log.start);
+  // cprintf("Finish bread.\n");
   struct logheader *lh = (struct logheader *) (buf->data);
   int i;
   log.lh.n = lh->n;
@@ -130,8 +136,11 @@ write_head(void)
 static void
 recover_from_log(void)
 {
+  // cprintf("Begin recover.\n");
   read_head();
+  // cprintf("Finish readhead.\n");
   install_trans();
+  // cprintf("Finish install_trans.\n");
   log.lh.n = 0;
   write_head();
 }

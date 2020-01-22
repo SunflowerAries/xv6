@@ -428,8 +428,15 @@ sched(void)
 	// TODO: your code here.
 	int intena;
 	struct proc *p = thisproc();
-	if(!holding(&ptable.lock))
+	if(!holding(&ptable.lock)) {
+		// if (ptable.lock.cpu)
+		// 	cprintf("unlock: %u, %u\n", ptable.lock.cpu->cpu_id, thiscpu->cpu_id);
+		// else
+		// 	cprintf("unlock: NULL, %u\n", thiscpu->cpu_id);
+		// cprintf("State: %d\n", p->state);
 		panic("sched ptable.lock");
+	}
+	// cprintf("Sched\nCPU:%u\ncli:%d\n", thiscpu->cpu_id, thiscpu->ncli);
 	int eflags = read_eflags();
 	if(thiscpu->ncli != 1)
 		panic("sched locks");
@@ -438,6 +445,7 @@ sched(void)
 	if(read_eflags()&FL_IF)
 		panic("sched interruptible");
 	intena = thiscpu->intena;
+	// cprintf("Before swtch.\n");
 	swtch(&p->context, thiscpu->scheduler);
 	thiscpu->intena = intena;
 }
@@ -455,6 +463,7 @@ forkret(void)
 		first = 0;
 		initlog(ROOTDEV);
 	}
+	// cprintf("Finish init.\n");
 }
 
 void
@@ -462,13 +471,13 @@ wakeup1(void *chan)
 {
 	struct proc *p = ptable.list[SLEEPING].head;
 	struct proc *tmp;
-	while(p) {
+	while (p) {
 		tmp = p->next;
 		if (p->chan == chan) {
 			if (stateListRemove(&ptable.list[SLEEPING], p, "Wakeup") < 0)
 				panic("In SLEEPING: Empty or process not in list");
 			assertState(p, SLEEPING, "Wakeup");
-			cprintf("wakeup pid %d\n", p->pid);
+			// cprintf("wakeup pid %d\n", p->pid);
 			p->state = RUNNABLE;
 			stateListAdd(&ptable.ready[p->priority], p, "Wakeup");
 		}	
@@ -479,7 +488,26 @@ wakeup1(void *chan)
 void
 wakeup(void *chan)
 {
+	// cprintf("Enter wakeup.\n");
+	#ifdef DEBUG_MCSLOCK
+	int i;
+	cprintf("CPU: %x\n", ptable.lock.cpu);
+	for (i = 0; i < 4; i++)
+		if (ptable.lock.cpu == &cpus[i]) {
+			cprintf("%x \n", ptable.lock.locked);
+			cprintf("Ptable.lock is held by CPU%d, thisCPU: %d\n", i, thiscpu->cpu_id);
+			break;
+		}
+	#else
+		for (int i = 0; i < 4; i++)
+		if (ptable.lock.cpu == &cpus[i]) {
+			cprintf("Ptable.lock is held by CPU%d, thisCPU: %d\n", i, thiscpu->cpu_id);
+			break;
+		}
+	#endif
+	// cprintf("Before acquire.\n");
 	spin_lock(&ptable.lock);
+	// cprintf("Acquire ptable.lock.\n");
 	wakeup1(chan);
 	spin_unlock(&ptable.lock);
 }
@@ -571,6 +599,14 @@ sleep(void *chan, struct spinlock *lk)
 		panic("sleep without tickslock");
 	if (lk != &ptable.lock) {
 		spin_lock(&ptable.lock);
+		// cprintf("CPU%d acquire ptable.lock sleep\n", thiscpu->cpu_id);
+		if(!holding(&ptable.lock)) {
+			// if (ptable.lock.cpu)
+			// 	cprintf("unlock: %u, %u\n", ptable.lock.cpu->cpu_id, thiscpu->cpu_id);
+			// else
+			// 	cprintf("unlock: NULL, %u\n", thiscpu->cpu_id);
+			panic("sched ptable.lock");
+		}
 		spin_unlock(lk);
 	}
 	if (stateListRemove(&ptable.list[RUNNING], p, "Sleep") < 0)
@@ -580,6 +616,8 @@ sleep(void *chan, struct spinlock *lk)
 	p->state = SLEEPING;
 	stateListAdd(&ptable.list[p->state], p, "Sleep");
 	sched();
+	__sync_synchronize();
+	// cprintf("\nSleeper wakeup.\n");
 	p->chan = NULL;
 	if (lk != &ptable.lock) {
 		spin_unlock(&ptable.lock);

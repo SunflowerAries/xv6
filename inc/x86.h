@@ -285,8 +285,8 @@ cmpxchg(volatile uint32_t *addr, uint32_t old, uint32_t new) {
 
 	asm volatile("lock; cmpxchgl %2, %1"
 				 : "=a"(result)
-				 : "m"(*addr), "r"(new), "a"(old)
-				 : "cc", "memory");
+				 : "m"(*addr), "r"(new), "0"(old)
+				 : "memory");
 	return result;
 }
 

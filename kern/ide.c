@@ -6,6 +6,7 @@
 #include <inc/x86.h>
 #include <inc/assert.h>
 #include <kern/ide.h>
+#include <kern/cpu.h>
 #include <kern/ioapic.h>
 #include <kern/proc.h>
 #include <kern/spinlock.h>
@@ -92,6 +93,7 @@ ide_init(void)
     //init the lock and pic first.
     __spin_initlock(&ide_lock, "ide");
     ioapicenable(IRQ_IDE, ncpu - 1);
+    // ioapicenable(IRQ_IDE, 0);
 
     //todo: your code here.
     if (ide_wait(1) < 0)
@@ -166,6 +168,7 @@ ide_intr(void)
         insl(0x1f0, b->data, BSIZE / 4);
     b->flags |= B_VALID;
     b->flags &= ~B_DIRTY;
+    cprintf("Clear flags.\n");
     wakeup(b);
     if ((b = ideQueueRemove(&ide_queue)))
         ide_start(b);

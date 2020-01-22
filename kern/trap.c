@@ -64,6 +64,7 @@ trap(struct trapframe *tf)
 		lapic_eoi();
 		break;
 	case T_IRQ0 + IRQ_IDE:
+		// cprintf("ideintr: %u\n", thiscpu->cpu_id);
 		ide_intr();
 		lapic_eoi();
 		break;

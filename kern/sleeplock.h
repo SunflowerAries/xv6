@@ -29,5 +29,4 @@ void __sleep_initlock(struct sleeplock *lk, char *name);
 void sleep_lock(struct sleeplock *lk);
 bool holdingsleep(struct sleeplock *lk);
 void sleep_unlock(struct sleeplock *lk);
-int holding(struct spinlock *lock);
 #endif
