@@ -37,7 +37,7 @@ ideQueueAdd(struct ide_queue *queue, struct buf *b)
         queue->tail = queue->head = b;
     else {
         queue->tail->Qnext = b;
-        queue->tail = b;
+        queue->tail = queue->tail->Qnext;
     }
     b->Qnext = NULL;
 }
@@ -168,7 +168,6 @@ ide_intr(void)
         insl(0x1f0, b->data, BSIZE / 4);
     b->flags |= B_VALID;
     b->flags &= ~B_DIRTY;
-    cprintf("Clear flags.\n");
     wakeup(b);
     if ((b = ideQueueRemove(&ide_queue)))
         ide_start(b);
@@ -200,7 +199,7 @@ iderw(struct buf *b)
     spin_lock(&ide_lock);
     ideQueueAdd(&ide_queue, b);
     if (b == ide_queue.head)
-        ide_start(b);
+        ide_start(b);        
     while ((b->flags & (B_VALID | B_DIRTY)) != B_VALID)
         sleep(b, &ide_lock);
     spin_unlock(&ide_lock);

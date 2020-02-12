@@ -12,6 +12,12 @@ enum {
 	SYS_kill,
 	SYS_ipc_recv,
 	SYS_ipc_try_send,
+	SYS_open,
+	SYS_read,
+	SYS_write,
+	SYS_link,
+	SYS_unlink,
+	SYS_stat,
 	NSYSCALLS
 };
 

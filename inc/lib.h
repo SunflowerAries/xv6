@@ -17,6 +17,7 @@
 #include <inc/memlayout.h>
 #include <inc/syscall.h>
 #include <kern/spinlock.h>
+#include <kern/stat.h>
 
 #define USED(x)		(void)(x)
 
@@ -35,6 +36,12 @@ int     fork(void);
 void    sleep(uint32_t n);
 int     wait(void);
 int     kill(uint32_t pid);
+int     read(int32_t fd, char *buf, int len);
+int     write(int32_t fd, char *buf, int len);
+int     open(char *path, int mode);
+int     link(char *old, char *new);
+int     unlink(char *path);
+int     stat(int32_t fd, struct stat *st);
 
 // readline.c
 char*	readline(const char *buf);
@@ -47,6 +54,12 @@ int     sys_fork(void);
 void    sys_sleep(uint32_t n);
 int     sys_wait(void);
 int     sys_kill(uint32_t pid);
+int     sys_read(int32_t fd, char *buf, int len);
+int     sys_write(int32_t fd, const char *buf, int len);
+int     sys_open(char *path, int mode);
+int     sys_link(char *old, char *new);
+int     sys_unlink(char *path);
+int     sys_stat(int32_t fd, struct stat *st);
 
 // envid_t	sys_getenvid(void);
 // int	sys_env_destroy(envid_t);

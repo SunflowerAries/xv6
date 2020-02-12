@@ -80,3 +80,39 @@ sys_kill(uint32_t pid)
 {
 	return syscall(SYS_kill, 0, pid, 0, 0, 0, 0);
 }
+
+int
+sys_read(int32_t fd, char *buf, int len)
+{
+	return syscall(SYS_read, 0, fd, (uint32_t)buf, len, 0, 0);
+}
+
+int
+sys_write(int32_t fd, const char *buf, int len)
+{
+	return syscall(SYS_write, 0, fd, (uint32_t)buf, len, 0, 0);
+}
+
+int
+sys_open(char *path, int mode)
+{
+	return syscall(SYS_open, 0, (uint32_t)path, mode, 0, 0, 0);
+}
+
+int
+sys_link(char *old, char *new)
+{
+	return syscall(SYS_link, 0, (uint32_t)old, (uint32_t)new, 0, 0, 0);
+}
+
+int
+sys_unlink(char *path)
+{
+	return syscall(SYS_unlink, 0, (uint32_t)path, 0, 0, 0, 0);
+}
+
+int
+sys_stat(int32_t fd, struct stat *st)
+{
+	return syscall(SYS_stat, 0, fd, (uint32_t)st, 0, 0, 0);
+}

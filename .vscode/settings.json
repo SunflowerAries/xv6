@@ -30,6 +30,11 @@
         "cstdlib": "c",
         "cmath": "c",
         "*.tcc": "c",
-        "typeinfo": "c"
+        "typeinfo": "c",
+        "file.h": "c",
+        "fs.h": "c",
+        "limits": "c",
+        "stat.h": "c",
+        "fcntl.h": "c"
     }
 }

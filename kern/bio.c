@@ -32,9 +32,9 @@ binit(void)
 {
     struct buf *b;
     __spin_initlock(&bcache.lock, "bcache");
-    bcache.head.next = &bcache.head;
     bcache.head.prev = &bcache.head;
-    for (b = bcache.buf; b < &bcache.buf[NBUF]; b++) {
+    bcache.head.next = &bcache.head;
+    for (b = bcache.buf; b < bcache.buf+NBUF; b++) {
         b->next = bcache.head.next;
         b->prev = &bcache.head;
         __sleep_initlock(&b->lock, "buffer");
@@ -56,31 +56,60 @@ binit(void)
 static struct buf*
 bget(uint32_t dev, uint32_t blockno)
 {
-    struct buf *b = bcache.head.next;
-    spin_lock(&bcache.lock); // TODO: need clarify why need lock here: for fear that there are some process releasing the buffer because the value refcnt set to 0
-    while (b != &bcache.head) {
-        if (b->dev == dev && b->blockno == blockno) {
-            b->refcnt++;
-            spin_unlock(&bcache.lock);
-            sleep_lock(&b->lock); // TODO: need clarify why need sleeplock instead of spinlock here: I/O operations need more time
-            return b;
-        }
-        b = b->next;
+//     spin_lock(&bcache.lock); // TODO: need clarify why need lock here: for fear that there are some process releasing the buffer because the value refcnt set to 0
+//     struct buf *b = bcache.head.next;
+//     while (b != &bcache.head) {
+//         if (b->dev == dev && b->blockno == blockno) {
+//             b->refcnt++;
+//             spin_unlock(&bcache.lock);
+//             sleep_lock(&b->lock); // TODO: need clarify why need sleeplock instead of spinlock here: I/O operations need more time
+//             return b;
+//         }
+//         b = b->next;
+//     }
+//     b = bcache.head.prev;
+//     while (b != &bcache.head) {
+//         if (b->refcnt == 0 && (b->flags & B_DIRTY) == 0) {
+//             b->dev = dev;
+//             b->blockno = blockno;
+//             b->flags = 0;
+//             b->refcnt = 1;
+//             spin_unlock(&bcache.lock);
+//             sleep_lock(&b->lock);
+//             return b;
+//         }
+//         b = b->prev;
+//     }
+//     panic("Bget: No buffers");
+  struct buf *b;
+
+  spin_lock(&bcache.lock);
+
+  // Is the block already cached?
+  for(b = bcache.head.next; b != &bcache.head; b = b->next){
+    if(b->dev == dev && b->blockno == blockno){
+      b->refcnt++;
+      spin_unlock(&bcache.lock);
+      sleep_lock(&b->lock);
+      return b;
     }
-    b = bcache.head.prev;
-    while (b != &bcache.head) {
-        if (b->refcnt == 0 && (b->flags & B_DIRTY) == 0) {
-            b->dev = dev;
-            b->blockno = blockno;
-            b->flags = 0;
-            b->refcnt = 1;
-            spin_unlock(&bcache.lock);
-            sleep_lock(&b->lock);
-            return b;
-        }
-        b = b->prev;
+  }
+
+  // Not cached; recycle an unused buffer.
+  // Even if refcnt==0, B_DIRTY indicates a buffer is in use
+  // because log.c has modified it but not yet committed it.
+  for(b = bcache.head.prev; b != &bcache.head; b = b->prev){
+    if(b->refcnt == 0 && (b->flags & B_DIRTY) == 0) {
+      b->dev = dev;
+      b->blockno = blockno;
+      b->flags = 0;
+      b->refcnt = 1;
+      spin_unlock(&bcache.lock);
+      sleep_lock(&b->lock);
+      return b;
     }
-    panic("Bget: No buffers");
+  }
+  panic("bget: no buffers");
 }
 
 /* Return a locked buffer with the contents of the indicated block.
@@ -93,6 +122,9 @@ bread(uint32_t dev, uint32_t blockno)
 {
     struct buf *b;
     b = bget(dev, blockno);
+    #ifdef DEBUG_BIO
+    cprintf("bread: blockno: %d, flags: %d\n", b->blockno, b->flags);
+    #endif
     if (!(b->flags & B_VALID))
         iderw(b);
     return b;
@@ -119,7 +151,7 @@ void
 brelse(struct buf *b)
 {
     if (!holdingsleep(&b->lock))
-        panic("Brelease");
+        panic("brelease");
     sleep_unlock(&b->lock); // TODO: Why release at here? 
                             // TODO: Ans: I think it doesn't matter whether releasing this sleeplock within the critical section of bcachelock
     spin_lock(&bcache.lock);

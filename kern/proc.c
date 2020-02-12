@@ -43,11 +43,10 @@ static void
 stateListAdd(struct ptrs* list, struct proc *p, const char *place)
 {
 	if (list->head == NULL) {
-		list->head = p;
-		list->tail = p;
+		list->tail = list->head = p;
 	} else {
 		list->tail->next = p;
-		list->tail = p;
+		list->tail = list->tail->next;
 	}
 	p->next = NULL;
 	// cprintf("Add pid %d to %d at %s\n", p->pid, p->state, place);
@@ -69,10 +68,12 @@ stateListRemove(struct ptrs* list, struct proc *p, const char *place)
 	} 
 
 	next = ptr->next;
-	for (; ptr != list->tail; ptr = next, next = next->next)
+	for (; ptr != list->tail; ptr = next, next = ptr->next)
 		if (next == p) {
-			ptr->next = next->next;
-			next->next = NULL;
+			if (next == list->tail)
+				list->tail = ptr;
+			ptr->next = p->next;
+			p->next = NULL;
 			return 0;
 		}
 	return -1;
@@ -115,10 +116,14 @@ proc_alloc(void)
 	struct proc* p;
 	char* begin;
 	
-	p = ptable.list[UNUSED].head;
-	if (p == NULL)
-		return NULL;
 	spin_lock(&ptable.lock);
+	p = ptable.list[UNUSED].head;
+
+	if (p == NULL) {
+		spin_unlock(&ptable.lock);
+		return NULL;
+	}
+
 	p->pid = nextpid++;
 	if (stateListRemove(&ptable.list[UNUSED], p, "Proc") < 0)
 		panic("In UNUSED: Empty or process not in list");
@@ -272,6 +277,7 @@ user_init(void)
 {
 	// TODO: your code here.
 	struct proc *child;
+
 #ifdef DEBUG_MLFQ
 	spin_lock(&ptable.lock);
 	proc_list_init();
@@ -296,8 +302,24 @@ user_init(void)
 	child->tf->eip = (uintptr_t)begin;
 	child->tf->esp = USTACKTOP;
 
-#ifdef DEBUG_MLFQ
+	// struct inode *initip = ialloc(ROOTDEV, T_DIR);
+	// dirlink(initip, "/", initip->inum);
+	// cprintf("inum: %d\n", initip->inum);
+
+	// de.inum = 1;
+	// strcpy(de.name, ".");
+	// if (writei(initip, (char *)&de, off, sizeof(de)) != sizeof(de))
+	// 	panic("userinit: writei1");
+	// off += sizeof(de);
+
+	// strcpy(de.name, "..");
+	// if (writei(initip, (char *)&de, off, sizeof(de)) != sizeof(de))
+	// 	panic("userinit: writei2");
+	
+	child->cwd = namei("/");
+	
 	spin_lock(&ptable.lock);
+#ifdef DEBUG_MLFQ
 	if (stateListRemove(&ptable.list[EMBRYO], child, "Userinit") < 0)
 		panic("In EMBRYO: Empty or process not in list");
 	assertState(child, EMBRYO, "Userinit");
@@ -306,10 +328,9 @@ user_init(void)
 #ifdef DEBUG_MLFQ
 	stateListAdd(&ptable.ready[child->priority], child, "Userinit");
 	ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
-	spin_unlock(&ptable.lock);
 #endif
+	spin_unlock(&ptable.lock);
 	// stateListAdd(&ptable.list[child->state], child);
-	
 }
 
 //
@@ -334,6 +355,7 @@ ucode_run(void)
 	for (;;) {
 		sti();
 		spin_lock(&ptable.lock);
+		// cprintf("scheduler: lock ptable\n");
 		// cprintf("in while.\n");
 		if (ticks >= ptable.PromoteAtTime) {
 			for (int j = MAXPRIO - 1; j >= 0; j--) {
@@ -367,13 +389,14 @@ ucode_run(void)
 				stateListAdd(&ptable.list[p->state], p, "Ucode_run");
 				thiscpu->proc = p;
 				p->begin_tick = ticks;
-				swtch(&thiscpu->scheduler, p->context);
+				swtch(&(thiscpu->scheduler), p->context);
 				kvm_switch();
 				thiscpu->proc = NULL;
 				break;
 			}
 		}
 		spin_unlock(&ptable.lock);
+		// cprintf("scheduler: unlock ptable\n");
 	}
 }
 #else
@@ -416,6 +439,7 @@ thisproc(void) {
 	pushcli();
 	p = thiscpu->proc;
 	popcli();
+	// cprintf("ncli: %d\n", thiscpu->ncli);
 	return p;
 }
 
@@ -434,6 +458,9 @@ sched(void)
 		// else
 		// 	cprintf("unlock: NULL, %u\n", thiscpu->cpu_id);
 		// cprintf("State: %d\n", p->state);
+		#ifdef DEBUG_MCSLOCK
+		cprintf("locked: %d, cpu: %d\n", ptable.lock.locked != NULL, ptable.lock.cpu == thiscpu);
+		#endif
 		panic("sched ptable.lock");
 	}
 	// cprintf("Sched\nCPU:%u\ncli:%d\n", thiscpu->cpu_id, thiscpu->ncli);
@@ -459,9 +486,14 @@ forkret(void)
 	// TODO: your code here.
 	static int first = 1;
 	spin_unlock(&ptable.lock);
+	// cprintf("forkret: unlock ptable\n");
+	if (holding(&ptable.lock))
+		panic("hold");
 	if (first) {
 		first = 0;
+		iinit(ROOTDEV);
 		initlog(ROOTDEV);
+		// cprintf("Finish init.\n");
 	}
 	// cprintf("Finish init.\n");
 }
@@ -488,28 +520,13 @@ wakeup1(void *chan)
 void
 wakeup(void *chan)
 {
-	// cprintf("Enter wakeup.\n");
-	#ifdef DEBUG_MCSLOCK
-	int i;
-	cprintf("CPU: %x\n", ptable.lock.cpu);
-	for (i = 0; i < 4; i++)
-		if (ptable.lock.cpu == &cpus[i]) {
-			cprintf("%x \n", ptable.lock.locked);
-			cprintf("Ptable.lock is held by CPU%d, thisCPU: %d\n", i, thiscpu->cpu_id);
-			break;
-		}
-	#else
-		for (int i = 0; i < 4; i++)
-		if (ptable.lock.cpu == &cpus[i]) {
-			cprintf("Ptable.lock is held by CPU%d, thisCPU: %d\n", i, thiscpu->cpu_id);
-			break;
-		}
-	#endif
 	// cprintf("Before acquire.\n");
 	spin_lock(&ptable.lock);
+	// cprintf("wakeup: lock ptable\n");
 	// cprintf("Acquire ptable.lock.\n");
 	wakeup1(chan);
 	spin_unlock(&ptable.lock);
+	// cprintf("wakeup: unlock ptable\n");
 }
 
 #ifdef DEBUG_MLFQ
@@ -518,8 +535,10 @@ fork(void)
 {
 	struct proc *p = thisproc();
 	struct proc *child;
+
 	if ((child = proc_alloc()) == NULL)
 		return -1;
+
 	if ((child->pgdir = copyuvm(p->pgdir)) == NULL) {
 		kfree(child->kstack);
 		child->kstack = NULL;
@@ -536,13 +555,21 @@ fork(void)
 	*child->tf = *p->tf;
 	// TODO: can't understand the reason for parent id.
 	child->tf->eax = 0;
+
+	for (int i = 0; i < NFILE; i++)
+		if (p->ofile[i])
+			child->ofile[i] = filedup(p->ofile[i]);
+	child->cwd = idup(p->cwd);
+
 	spin_lock(&ptable.lock);
+	// cprintf("fork: lock ptable\n");
 	if (stateListRemove(&ptable.list[EMBRYO], child, "fork") < 0)
 		panic("In EMBRYO: Empty or process not in list");
 	assertState(child, EMBRYO, "fork");
 	child->state = RUNNABLE;
 	stateListAdd(&ptable.ready[child->priority], child, "fork");
 	spin_unlock(&ptable.lock);
+	// cprintf("fork: unlock ptable\n");
 	return child->pid;
 }
 
@@ -552,8 +579,22 @@ exit(void)
 	// sys_exit() call to here.
 	// TODO: your code here.
 	struct proc *p = thisproc();
+	int fd;
+
+	for (fd = 0; fd < NFILE; fd++)
+		if (p->ofile[fd]) {
+			fileclose(p->ofile[fd]);
+			p->ofile[fd] = NULL;
+		}
+	
+	begin_op();
+	iput(p->cwd);
+	end_op();
+	p->cwd = NULL;
+
 	cprintf("process %d exit.\n", p->pid);
 	spin_lock(&ptable.lock);
+	// cprintf("exit: lock ptable\n");
 	if (p->parent) {
 		cprintf("parent:%d\n", p->parent->pid);
 		wakeup1(p->parent); // TODO: need root process
@@ -563,6 +604,7 @@ exit(void)
 	assertState(p, RUNNING, "exit");
 	p->state = ZOMBIE;
 	stateListAdd(&ptable.list[p->state], p, "exit");
+	
 	sched();
 }
 
@@ -570,10 +612,13 @@ exit(void)
 void
 yield(void)
 {
-	struct proc *p = thisproc();
-	if (ticks - p->begin_tick < time_slice[p->priority])
-		return;
 	spin_lock(&ptable.lock);
+	// cprintf("yield: lock ptable\n");
+	struct proc *p = thisproc();
+	if (ticks - p->begin_tick < time_slice[p->priority]) {
+		spin_unlock(&ptable.lock);
+		return;
+	}
 	if (stateListRemove(&ptable.list[RUNNING], p, "yield") < 0)
 		panic("In RUNNING: Empty or process is not in list");
 	assertState(p, RUNNING, "yield");
@@ -587,6 +632,7 @@ yield(void)
 	p->budget = time_slice[p->priority];
 	sched();
 	spin_unlock(&ptable.lock);
+	// cprintf("yield: unlock ptable\n");
 }
 
 void
@@ -598,15 +644,13 @@ sleep(void *chan, struct spinlock *lk)
 	if (lk == NULL)
 		panic("sleep without tickslock");
 	if (lk != &ptable.lock) {
-		spin_lock(&ptable.lock);
-		// cprintf("CPU%d acquire ptable.lock sleep\n", thiscpu->cpu_id);
-		if(!holding(&ptable.lock)) {
-			// if (ptable.lock.cpu)
-			// 	cprintf("unlock: %u, %u\n", ptable.lock.cpu->cpu_id, thiscpu->cpu_id);
-			// else
-			// 	cprintf("unlock: NULL, %u\n", thiscpu->cpu_id);
-			panic("sched ptable.lock");
+		// cprintf("Bomb\ncpu: %u\n", ptable.lock.cpu);
+		if (holding(&ptable.lock)) {
+			cprintf("lock: %d, cpu: %u\n", ptable.lock.locked, ptable.lock.cpu);
+			panic("hold");
 		}
+		spin_lock(&ptable.lock);
+		// cprintf("sleep: lock ptable\n");
 		spin_unlock(lk);
 	}
 	if (stateListRemove(&ptable.list[RUNNING], p, "Sleep") < 0)
@@ -616,11 +660,11 @@ sleep(void *chan, struct spinlock *lk)
 	p->state = SLEEPING;
 	stateListAdd(&ptable.list[p->state], p, "Sleep");
 	sched();
-	__sync_synchronize();
 	// cprintf("\nSleeper wakeup.\n");
 	p->chan = NULL;
 	if (lk != &ptable.lock) {
 		spin_unlock(&ptable.lock);
+		// cprintf("sleep: unlock ptable\n");
 		spin_lock(lk);
 	}
 }
@@ -632,6 +676,7 @@ wait(void)
 	struct proc *q, *tmp;
 	uint32_t pid;
 	spin_lock(&ptable.lock);
+	// cprintf("wait: lock ptable\n");
 	for (;;) {
 		q = ptable.list[ZOMBIE].head;
 		while (q) {
@@ -650,6 +695,7 @@ wait(void)
 				q->parent = NULL;
 				q->pid = 0;
 				spin_unlock(&ptable.lock);
+				// cprintf("wait: unlock ptable\n");
 				return pid;
 			}
 			q = tmp;

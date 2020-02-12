@@ -208,7 +208,7 @@ The function **bmap** manages the representation so that higher-level routines s
 
 writei copy data into the buffer, and update its size if needed.
 
-#### 7.3.4.5 stati 
+#### 7.3.4.5 stati
 
 The function **stati** copies inode metadata into the stat structure, which is exposed to user programs via the **stat** system call.
 
@@ -238,7 +238,7 @@ Both **Namei** and **nameiparent** call the generalized function **namex** to do
 
 A cool aspect of the Unix interface is that most resources in Unix are represented as files, including devices such as the console, pipes, and of course, real files. The file descriptor layer is the layer that achieves this uniformity.
 
-each process has its own table of open files, or file descriptors. Each open file is represented by a struct **file**, which is a wrapper around either an **inode** or a **pipe**, plus an i/o **offset**.Each call to **open** creates a new open file (a new struct **file**): if multiple processes open the same file independently, the different instances will have different i/o offsets. A reference count tracks the number of references to a particular open file. A file can be open for reading or writing or both. The readable and writable fields track this.
+each process has its own table of open files, or file descriptors. Each open file is represented by a struct **file**, which is a wrapper around either an **inode** or a **pipe**, plus an i/o **offset**. Each call to **open** creates a new open file (a new struct **file**): if multiple processes open the same file independently, the different instances will have different i/o offsets. A reference count tracks the number of references to a particular open file. A file can be open for reading or writing or both. The readable and writable fields track this.
 
 All the open files in the system are kept in a global file table, the **ftable**. The file table has a function to allocate a file (**filealloc**), create a duplicate reference (**filedup**), release a reference (**fileclose**), and read and write data (**fileread** and **filewrite**).
 

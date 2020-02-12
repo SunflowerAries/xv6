@@ -47,33 +47,14 @@ spin_lock(struct spinlock *lk)
 	me->next = NULL;
 	struct mcslock_node *pre = Xchg(&lk->locked, tmp);
 	__sync_synchronize();
-	if (lk == &ptable.lock) {
-		cprintf("CPU%d before aquire.\n", thiscpu->cpu_id);
-	}
 	if (pre != NULL) {
-		if (lk == &ptable.lock) {
-			for (int i = 0; i < 4; i++) {
-				if (&cpus[i].node == pre) {
-					cprintf("CPU%d wait CPU%d\n", thiscpu->cpu_id, i);
-					break;
-				}
-			}
-		}
 		me->waiting = 1;
 		__sync_synchronize();
 		pre->next = me;
-		cprintf("me: %x, pre: %x\n", me, pre->next);
 		__sync_synchronize();
 		while (me->waiting) {
 			asm volatile("pause");
-			if (!pre->next)
-				panic("Next empty");
-			else if (pre->next != me)
-				panic("Next False");
 		}
-	}
-	if (lk == &ptable.lock) {
-		cprintf("CPU%d acquire ptable.lock with pre: %x\n", thiscpu->cpu_id, pre);
 	}
 	lk->cpu = thiscpu;
 }
@@ -84,51 +65,21 @@ spin_unlock(struct spinlock *lk)
 	struct mcslock_node *me = &thiscpu->node;
 	struct mcslock_node *tmp = me;
 	if (!holding(lk)) {
-		if (lk->cpu) {
-			cprintf("unlock: %u, %u\n", lk->cpu->cpu_id, thiscpu->cpu_id);
-		}
-		else {
-			cprintf("unlock: NULL, %u\n", thiscpu->cpu_id);
-		}
+		cprintf("locked: %d, cpu: %d, %u\n", ptable.lock.locked != NULL, ptable.lock.cpu == thiscpu, ptable.lock.cpu);
 		panic("spin_unlock");
 	}
 	lk->cpu = NULL;
-	if (lk == &ptable.lock) {
-		cprintf("CPU%d release ptable.lock with next %x\n", thiscpu->cpu_id, me->next);
-	}
 	__sync_synchronize();
 	if (me->next == NULL) {
 		if (Cmpxchg(&lk->locked, tmp, NULL) == me) {
 			__sync_synchronize();
-			if (lk == &ptable.lock) {
-				cprintf("CPU%d has no next.\n", thiscpu->cpu_id);
-			}
 			popcli();
 			return;
 		}
-		// cprintf("Entre.\n");
-		int num = 0;
-		while (me->next == NULL) {
-			asm volatile("pause");
-			num++;
-			if (num > 10000)
-				return;
-		}
-		// cprintf("Fini.\n");
+		while (me->next == NULL);
 	}
 	__sync_synchronize();
-	cprintf("OK\n");
-	int i = 0;
-	if (lk == &ptable.lock) {
-		for (; i < 4; i++) {
-			if (&cpus[i].node == me->next) {
-				cprintf("CPU%d wakeup CPU%d\n", thiscpu->cpu_id, i);
-				break;
-			}
-		}
-	}
 	me->next->waiting = 0;
-	cprintf("CPU%d wakeup.\n", i);
 	__sync_synchronize();
 	me->next = NULL;
 	popcli();
@@ -156,9 +107,9 @@ spin_lock(struct spinlock *lk)
 	// reordered before it. 
 	// TODO: Your code here.
 	pushcli();
-	if (lk->cpu == thiscpu)
-		panic("spinlock");
-	while(xchg(&lk->locked, 1));
+	if(holding(lk))
+    	panic("acquire");
+	while(xchg(&lk->locked, 1) != 0);
 	__sync_synchronize();
 	lk->cpu = thiscpu;
 }
@@ -174,13 +125,19 @@ spin_unlock(struct spinlock *lk)
 	// (vol 3, 8.2.2). Because xchg() is implemented using asm volatile,
 	// gcc will not reorder C statements across the xchg.
 	// TODO: Your code here.
-	if (lk->cpu == thiscpu) {
-		lk->cpu = 0;
-		//xchg(&lk->locked, 0);
-		__sync_synchronize();
-		asm volatile("movl $0, %0" : "+m"(lk->locked) : );
-	} else 
-		panic("spin_unlock");
+	if (!holding(lk))
+		panic("release");
+	
+	lk->cpu = NULL;
+	__sync_synchronize();
+	asm volatile("movl $0, %0" : "+m" (lk->locked) : );
+	// xchg(&lk->locked, 0);
+	// if (lk->cpu == thiscpu) {
+	// 	lk->cpu = 0;
+	// 	//xchg(&lk->locked, 0);
+		
+	// } else 
+	// 	panic("spin_unlock");
 	popcli();
 }
 
@@ -189,7 +146,8 @@ holding(struct spinlock *lock)
 {
   int r;
   pushcli();
-  r = lock->cpu == thiscpu;
+  r = lock->locked && lock->cpu == thiscpu;
+//   cprintf("thiscpu: %u, lock: %u, r: %d\n", thiscpu, lock->cpu, r);
   popcli();
   return r;
 }

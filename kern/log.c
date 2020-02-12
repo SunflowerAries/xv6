@@ -4,7 +4,6 @@
 #include <kern/bio.h>
 #include <kern/cpu.h>
 #include <kern/log.h>
-#include <kern/block.h>
 #include <kern/spinlock.h>
 #include <kern/sleeplock.h>
 #include <kern/buf.h>
@@ -68,7 +67,7 @@ initlog(int dev)
   struct superblock sb;
   // cprintf("readsb: %u\n", thiscpu->cpu_id);
   readsb(dev, &sb);
-  // cprintf("Finish readsb.\n");
+  // cprintf("initlog: Finish readsb.\n");
   __spin_initlock(&log.lock, "log");
   // cprintf("Finish init loglock.\n");
   log.start = sb.logstart;
@@ -213,8 +212,8 @@ write_log(void)
     struct buf *from = bread(log.dev, log.lh.block[tail]);
     memmove(to->data, from->data, BSIZE);
     bwrite(to);
-    brelse(to);
     brelse(from);
+    brelse(to);
   }
 }
 
@@ -261,7 +260,9 @@ log_write(struct buf *b)
   
   if (log.lh.n >= LOGSIZE || log.lh.n >= log.size)
     panic("too big a transaction");
-  
+  if (log.outstanding < 1)
+    panic("log_write outside of trans");
+
   for (i = 0; i < log.lh.n; i++)
     if (log.lh.block[i] == b->blockno)
       break;
@@ -270,7 +271,7 @@ log_write(struct buf *b)
     log.lh.block[i] = b->blockno;
     log.lh.n++;
   }
-  spin_unlock(&log.lock);
   b->flags |= B_DIRTY;
+  spin_unlock(&log.lock);
 }
 

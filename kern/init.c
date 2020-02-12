@@ -13,6 +13,7 @@
 #include <kern/ioapic.h>
 #include <kern/bio.h>
 #include <kern/spinlock.h>
+#include <kern/file.h>
 
 static void boot_aps(void);
 
@@ -38,6 +39,7 @@ i386_init()
 	lapic_init();
 	pic_init();
 	ioapic_init();
+	fileinit();
 	ide_init();
 	binit();
 	
@@ -48,6 +50,7 @@ i386_init()
 	cprintf("VM: Init success.\n");
 	check_free_list();
 	user_init();
+	xchg(&thiscpu->cpu_status, CPU_STARTED);
 	ucode_run();
 	// Spin.
     while (1);
@@ -71,7 +74,7 @@ boot_aps(void)
 
 	// Boot each AP one at a time
 	for (c = cpus; c < cpus + ncpu; c++) {
-		if (c == cpus + cpunum())  // We've started already.
+		if (c == thiscpu)  // We've started already.
 			continue;
 
 		// Tell mpentry.S what stack to use 

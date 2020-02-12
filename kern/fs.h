@@ -4,11 +4,42 @@
 #ifndef KERN_FS_H
 #define KERN_FS_H
 
+// #include <kern/file.h>
+#include <kern/buf.h>
+#include <kern/stat.h>
+#include <kern/sleeplock.h>
+
 #define ROOTINO 1  // root i-number
 
 #define NDIRECT 12
 #define NINDIRECT (BSIZE / sizeof(uint32_t))
 #define MAXFILE (NDIRECT + NINDIRECT)
+
+struct superblock {
+  uint32_t size;         // Size of file system image (blocks)
+  uint32_t nblocks;      // Number of data blocks
+  uint32_t ninodes;      // Number of inodes.
+  uint32_t nlog;         // Number of log blocks
+  uint32_t logstart;     // Block number of first log block
+  uint32_t inodestart;   // Block number of first inode block
+  uint32_t bmapstart;    // Block number of first free map block
+};
+
+// in-memory copy of an inode
+struct inode {
+  uint32_t dev;           // Device number
+  uint32_t inum;          // Inode number
+  int ref;            // Reference count
+  struct sleeplock lock; // protects everything below here
+  int valid;          // inode has been read from disk?
+
+  short type;         // copy of disk inode
+  short major;
+  short minor;
+  short nlink;
+  uint32_t size;
+  uint32_t addrs[NDIRECT+1];
+};
 
 // On-disk inode structure
 struct dinode {
@@ -41,8 +72,9 @@ struct dirent {
 };
 
 #define NINODE  50      // Maximum number of active i-nodes
-#define ROOTDEV 1       // Device number of file system root disk
+#define ROOTDEV 0       // Device number of file system root disk
 
+void            readsb(int dev, struct superblock *sb);
 int             dirlink(struct inode*, char*, uint32_t);
 struct inode*   dirlookup(struct inode*, char*, uint32_t*);
 struct inode*   ialloc(uint32_t, short);

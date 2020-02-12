@@ -4,22 +4,32 @@
 static void
 sleepingQueueAdd(struct sleeping_queue *queue, struct sleepnode *p)
 {
+    p->next = NULL;
+    // cprintf("before add head: %u, head->next: %u, tail: %u, p: %u\n", queue->head, queue->head == NULL ? NULL : queue->head->next, queue->tail, p);
     if (queue->head == NULL)
         queue->tail = queue->head = p;
     else {
         queue->tail->next = p;
-        queue->tail = p;
+        queue->tail = queue->tail->next;
     }
-    p->next = NULL;
+    // cprintf("after add head: %u, head->next: %u, tail: %u\n", queue->head, queue->head == NULL ? NULL : queue->head->next, queue->tail);
 }
 
 static struct sleepnode*
 sleepingQueueRemove(struct sleeping_queue *queue)
 {
+    struct sleepnode *p;
+    // cprintf("before remove head: %u, head->next: %u, tail: %u\n", queue->head, queue->head == NULL ? NULL : queue->head->next, queue->tail);
+    if (queue->head == NULL)
+        panic("sleeping remove");
     if (queue->tail == queue->head)
         queue->head = queue->tail = NULL;
-    else
+    else {
+        p = queue->head;
+        p->next = NULL;
         queue->head = queue->head->next;
+    }
+    // cprintf("after remove head: %u, head->next: %u, tail: %u\n", queue->head, queue->head == NULL ? NULL : queue->head->next, queue->tail);
     return queue->head;
 }
 
@@ -52,7 +62,7 @@ sleep_unlock(struct sleeplock *lk)
     spin_lock(&lk->lk);
     lk->locked = 0;
     lk->pid = 0;
-    struct sleepnode *p;
+    struct sleepnode *p = NULL;
     p = sleepingQueueRemove(&lk->queue);
     if (p != NULL)
         wakeup(p);
@@ -64,7 +74,8 @@ holdingsleep(struct sleeplock *lk)
 {
     int r;
     spin_lock(&lk->lk);
-    r = lk->locked && lk->pid == thisproc()->pid;
+    // cprintf("cpu: %u, lock: %d\n", lk->lk.cpu, lk->lk.locked);
+    r = lk->locked && (lk->pid == thisproc()->pid);
     spin_unlock(&lk->lk);
     return r;
 }

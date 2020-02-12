@@ -19,6 +19,7 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 #include <inc/assert.h>
 #include <inc/x86.h>
 #include <kern/spinlock.h>
+#include <kern/file.h>
 
 struct context {
 	uint32_t edi;
@@ -42,6 +43,8 @@ struct proc {
 	uint32_t budget;			// Own time-slice
 	uint32_t begin_tick;		// Time to hold CPU
 	void *chan;					// Sleeping on chan
+	struct file *ofile[NFILE];	// Open files
+	struct inode *cwd;			// Current directory
 #endif
 };
 
