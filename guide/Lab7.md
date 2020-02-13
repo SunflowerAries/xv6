@@ -146,7 +146,7 @@ The on-disk inode is defined by a struct **dinode**. struct **inode** is the in-
 
 **Ialloc** is used to allocate a new inode (for example, create a file). Ialloc is similar to **balloc**: it loops over the inode structures on the disk, one block at a time, looking for one that is marked free. When it finds one, it claims it by writing the new type to the disk and then returns an entry from the inode cache with the tail call to **iget**. **Iget**  looks through the inode cache for an active entry (ip->ref > 0) with the desired device and inode number. If it finds one, it returns a new reference to that inode, otherwise it reuse an inode cache, just like **bget**. 
 
-Notice that ialloc and iget **do not** get the lock of returned cache (just get a reference). Instead of that, any time you want to read or write the metadata or content.
+Notice that iaIlock lloc and iget **do not** get the lock of returned cache (just get a reference). Instead of that, any time you want to read or write the metadata or content.
 
 > Q: Why should iget return an unlocked inode instead of a locked inode? And why bget return a locked cache instead of an unlocked cache? 
 

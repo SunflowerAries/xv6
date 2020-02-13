@@ -24,5 +24,7 @@ umain(int argc, char **argv)
 		if (read(fd, buff, sizeof(buf)) != sizeof(buf))
 			cprintf("read error\n");
 		cprintf("parent read \"%s\" from fd[%d]\n", buff, fd);
+		int fd1 = open(".", O_RDONLY);
+		cprintf("fd: %d\n", fd1);
 	}
 }

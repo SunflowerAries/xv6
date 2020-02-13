@@ -563,6 +563,7 @@ dirlookup(struct inode *dp, char *name, uint32_t *poff)
 			panic("dirlookup read");
 		if (de.inum == 0)
 			continue;
+		// cprintf("Dirlook name: %s\n", de.name);
 		if (namecmp(name, de.name) == 0) {
 			if (poff)
 				*poff = off;
@@ -674,7 +675,6 @@ namex(char *path, int nameiparent, char *name)
 			iunlock(ip);
 			return ip;
 		}
-		cprintf("name: %s\n", name);
 		if ((next = dirlookup(ip, name, 0)) == NULL) {
 			iunlockput(ip);
 			return NULL;
